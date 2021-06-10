@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
-
 pragma solidity ^0.8.0;
 
-import "../libraries/LibDiamond.sol";
-import "../libraries/StoreTokens.sol";
-import "../interfaces/IAtxTokenV1.sol";
-import "../utils/Context.sol";
+import "../../libraries/StoreTokens.sol";
+import "../../interfaces/IAtxTokenV1.sol";
+import "../../interfaces/IERC20.sol";
+import "../../interfaces/IERC20Metadata.sol";
+import "../../utils/Context.sol";
 
 /**
  * @dev Implementation of the {IERC20} interface.
@@ -31,14 +31,16 @@ import "../utils/Context.sol";
  * functions have been added to mitigate the well-known issues around setting
  * allowances. See {IERC20-approve}.
  */
-contract AtxTokenV1 is Context, IERC20, IERC20Metadata, IAtxTokenV1 {
+contract AtxTokenV1 is Context, IERC20, IERC20Metadata {
+
+    uint constant TRANSFER_LOG_WAIT_SECONDS = 10;
+
+    /**
+     * @dev Emitted when a token has moved after a certain amount of time.
+     */
+    event BalanceLog(address indexed owner, uint256 balanceNew, uint256 balancePrev, uint256 balancePrevLog, uint ts);
 
     function setupAtxTokenV1(string memory name_, string memory symbol_, uint256 amount_) external {
-        LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
-        ds.supportedInterfaces[type(IERC20).interfaceId] = true;
-        ds.supportedInterfaces[type(IERC20Metadata).interfaceId] = true;
-        ds.supportedInterfaces[type(IAtxTokenV1).interfaceId] = true;
-        
         DataV1 storage s = DataV1Storage.diamondStorage();
         s._name = name_;
         s._symbol = symbol_;

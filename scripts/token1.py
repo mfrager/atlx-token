@@ -16,25 +16,23 @@ def main():
     dmd = interface.IDiamondCut(dm1)
     dmd.diamondCut([
         [token, 0, [
-            token.setup.signature,
+            token.setupAtxTokenV1.signature,
             token.transfer.signature,
             token.balanceOf['address'].signature,
-            token.balanceOf['address', 'uint256'].signature,
+#            token.balanceOf['address', 'uint256'].signature,
         ]]
     ], ZERO_ADDRESS, bytes(), {'from': accounts[0]})
 
-    erc = interface.IAtxTokenV1(dm1)
+    erc = interface.IERC20AtxV1(dm1)
 
     #input('Begin?')
 
     print('Setup')
-    print(erc.setup('Atellix', 'ATLX', 10000000, {'from': accounts[0]}))
-
+    print(erc.setupAtxTokenV1('Atellix', 'ATLX', 10000000, {'from': accounts[0]}))
     print('Transfer')
     print(erc.transfer(accounts[1], 500000, {'from': accounts[0]}).events)
     print('Balance')
     print(erc.balanceOf(accounts[1], {'from': accounts[1]}))
-    #print(erc.balanceOf(accounts[1], 0, {'from': accounts[1]}))
 
     #print('Run Forever')
     #while True:

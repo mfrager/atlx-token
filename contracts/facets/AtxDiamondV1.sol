@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.7.6;
 pragma experimental ABIEncoderV2;
 
 /******************************************************************************\
@@ -7,12 +7,13 @@ pragma experimental ABIEncoderV2;
 * EIP-2535 Diamond Standard: https://eips.ethereum.org/EIPS/eip-2535
 /******************************************************************************/
 
-import "../libraries/LibDiamond.sol";
-import "../interfaces/IDiamondCut.sol";
-import "../interfaces/IDiamondLoupe.sol";
-import "../interfaces/IERC165.sol";
+import "../../libraries/LibDiamond.sol";
+import "../../interfaces/IDiamondCut.sol";
+import "../../interfaces/IDiamondLoupe.sol";
+import "../../interfaces/IERC165.sol";
+import "../../interfaces/IERC173.sol";
 
-contract DiamondCutFacet is IDiamondCut, IDiamondLoupe, IERC165, IERC173 {
+contract AtxDiamondV1 is IDiamondCut, IDiamondLoupe, IERC165, IERC173 {
     // Diamond Cut Functions
     /// @notice Add/replace/remove any number of functions and optionally execute
     ///         a function with delegatecall
