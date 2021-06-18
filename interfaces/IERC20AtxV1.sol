@@ -4,13 +4,13 @@ pragma solidity ^0.8.0;
 /**
  * @dev Interface of the ERC20 standard as defined in the EIP.
  */
-interface IERC20AtxV1 {
+interface IERC20Full {
     // Begin AtxV1
 
     /**
      * @dev Token initialization function
      */
-    function setupAtxTokenV1(string memory name_, string memory symbol_, uint256 amount_) external;
+    function setupERC20Token(string memory name_, string memory symbol_, uint256 amount_) external;
 
     /**
      * @dev Emitted when a token has moved after a certain amount of time.

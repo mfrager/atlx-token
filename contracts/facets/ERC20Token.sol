@@ -2,8 +2,8 @@
 pragma solidity ^0.8.0;
 
 import "../../libraries/StoreTokens.sol";
-import "../../interfaces/IAtxTokenV1.sol";
 import "../../interfaces/IERC20.sol";
+import "../../interfaces/IERC20Token.sol";
 import "../../interfaces/IERC20Metadata.sol";
 import "../../utils/Context.sol";
 
@@ -31,7 +31,7 @@ import "../../utils/Context.sol";
  * functions have been added to mitigate the well-known issues around setting
  * allowances. See {IERC20-approve}.
  */
-contract AtxTokenV1 is Context, IERC20, IERC20Metadata {
+contract ERC20Token is Context, IERC20, IERC20Metadata {
 
     uint constant TRANSFER_LOG_WAIT_SECONDS = 10;
 
@@ -40,7 +40,7 @@ contract AtxTokenV1 is Context, IERC20, IERC20Metadata {
      */
     event BalanceLog(address indexed owner, uint256 balanceNew, uint256 balancePrev, uint256 balancePrevLog, uint ts);
 
-    function setupAtxTokenV1(string memory name_, string memory symbol_, uint256 amount_) external {
+    function setupERC20Token(string memory name_, string memory symbol_, uint256 amount_) external {
         DataV1 storage s = DataV1Storage.diamondStorage();
         s._name = name_;
         s._symbol = symbol_;

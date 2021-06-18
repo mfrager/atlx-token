@@ -10,10 +10,11 @@ pragma experimental ABIEncoderV2;
 import "../../libraries/LibDiamond.sol";
 import "../../interfaces/IDiamondCut.sol";
 import "../../interfaces/IDiamondLoupe.sol";
+//import "../../interfaces/IDiamondInterface.sol"; // TODO
 import "../../interfaces/IERC165.sol";
 import "../../interfaces/IERC173.sol";
 
-contract AtxDiamondV1 is IDiamondCut, IDiamondLoupe, IERC165, IERC173 {
+contract DiamondCut is IDiamondCut, IDiamondLoupe, IERC165, IERC173 {
     // Diamond Cut Functions
     /// @notice Add/replace/remove any number of functions and optionally execute
     ///         a function with delegatecall
@@ -81,6 +82,8 @@ contract AtxDiamondV1 is IDiamondCut, IDiamondLoupe, IERC165, IERC173 {
         LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
         return ds.supportedInterfaces[_interfaceId];
     }
+
+    // TODO: Add/remove interface
 
     // Ownership Facet implementing ERC-173.
     function transferOwnership(address _newOwner) external override {
