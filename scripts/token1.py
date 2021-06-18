@@ -6,20 +6,19 @@ ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 
 def main():
 
-    token = ERC20Token.deploy({'from': accounts[0]})
+    token1 = ERC20Token.deploy({'from': accounts[0]})
     dcf = DiamondCut.deploy({'from': accounts[0]})
     dm1 = Diamond.deploy([
         [dcf, 0, [dcf.diamondCut.signature]]
     ], [accounts[0]], {'from': accounts[0]})
-    print('Diamond: {}'.format(dm1))
+    print('Diamond 1: {}'.format(dm1))
 
     dmd = interface.IDiamondCut(dm1)
     dmd.diamondCut([
-        [token, 0, [
-            token.setupERC20Token.signature,
-            token.transfer.signature,
-            token.balanceOf['address'].signature,
-            token.balanceOf['address', 'uint256'].signature,
+        [token1, 0, [
+            token1.setupERC20Token.signature,
+            token1.transfer.signature,
+            token1.balanceOf.signature,
         ]]
     ], ZERO_ADDRESS, bytes(), {'from': accounts[0]})
 

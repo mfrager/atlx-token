@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "../../libraries/StoreTokens.sol";
+import "../../libraries/DataERC20.sol";
 import "../../interfaces/IERC20.sol";
-import "../../interfaces/IERC20Token.sol";
 import "../../interfaces/IERC20Metadata.sol";
 import "../../utils/Context.sol";
 
@@ -33,7 +32,7 @@ import "../../utils/Context.sol";
  */
 contract ERC20Token is Context, IERC20, IERC20Metadata {
 
-    uint constant TRANSFER_LOG_WAIT_SECONDS = 10;
+    uint constant TRANSFER_LOG_WAIT_SECONDS = 24 * 60 * 60; // 1 per day
 
     /**
      * @dev Emitted when a token has moved after a certain amount of time.
@@ -41,7 +40,7 @@ contract ERC20Token is Context, IERC20, IERC20Metadata {
     event BalanceLog(address indexed owner, uint256 balanceNew, uint256 balancePrev, uint256 balancePrevLog, uint ts);
 
     function setupERC20Token(string memory name_, string memory symbol_, uint256 amount_) external {
-        DataV1 storage s = DataV1Storage.diamondStorage();
+        DataERC20 storage s = DataERC20Storage.diamondStorage();
         s._name = name_;
         s._symbol = symbol_;
         s._minter = _msgSender();
@@ -52,7 +51,7 @@ contract ERC20Token is Context, IERC20, IERC20Metadata {
      * @dev Returns the name of the token.
      */
     function name() public view virtual override returns (string memory) {
-        DataV1 storage s = DataV1Storage.diamondStorage();
+        DataERC20 storage s = DataERC20Storage.diamondStorage();
         return s._name;
     }
 
@@ -61,7 +60,7 @@ contract ERC20Token is Context, IERC20, IERC20Metadata {
      * name.
      */
     function symbol() public view virtual override returns (string memory) {
-        DataV1 storage s = DataV1Storage.diamondStorage();
+        DataERC20 storage s = DataERC20Storage.diamondStorage();
         return s._symbol;
     }
 
@@ -86,7 +85,7 @@ contract ERC20Token is Context, IERC20, IERC20Metadata {
      * @dev See {IERC20-totalSupply}.
      */
     function totalSupply() public view virtual override returns (uint256) {
-        DataV1 storage s = DataV1Storage.diamondStorage();
+        DataERC20 storage s = DataERC20Storage.diamondStorage();
         return s._totalSupply;
     }
 
@@ -94,17 +93,8 @@ contract ERC20Token is Context, IERC20, IERC20Metadata {
      * @dev See {IERC20-balanceOf}.
      */
     function balanceOf(address account) public view virtual override returns (uint256) {
-        DataV1 storage s = DataV1Storage.diamondStorage();
+        DataERC20 storage s = DataERC20Storage.diamondStorage();
         return s._balances[account];
-    }
-
-    // ERC-1155
-    function balanceOf(address _owner, uint256 _id) external view returns (uint256) {
-        // uint256 houseToken = uint256(uint160(address(this)))
-        // require(id == houseToken, "Not the house token, go away!");
-        require(_id == 0, "Not the house token, go away!");
-        DataV1 storage s = DataV1Storage.diamondStorage();
-        return s._balances[_owner];
     }
 
     /**
@@ -124,7 +114,7 @@ contract ERC20Token is Context, IERC20, IERC20Metadata {
      * @dev See {IERC20-allowance}.
      */
     function allowance(address owner, address spender) public view virtual override returns (uint256) {
-        DataV1 storage s = DataV1Storage.diamondStorage();
+        DataERC20 storage s = DataERC20Storage.diamondStorage();
         return s._allowances[owner][spender];
     }
 
@@ -160,7 +150,7 @@ contract ERC20Token is Context, IERC20, IERC20Metadata {
     ) public virtual override returns (bool) {
         _transfer(sender, recipient, amount);
 
-        DataV1 storage s = DataV1Storage.diamondStorage();
+        DataERC20 storage s = DataERC20Storage.diamondStorage();
         uint256 currentAllowance = s._allowances[sender][_msgSender()];
         require(currentAllowance >= amount, "ERC20: transfer amount exceeds allowance");
         unchecked {
@@ -183,7 +173,7 @@ contract ERC20Token is Context, IERC20, IERC20Metadata {
      * - `spender` cannot be the zero address.
      */
     function increaseAllowance(address spender, uint256 addedValue) public virtual returns (bool) {
-        DataV1 storage s = DataV1Storage.diamondStorage();
+        DataERC20 storage s = DataERC20Storage.diamondStorage();
         _approve(_msgSender(), spender, s._allowances[_msgSender()][spender] + addedValue);
         return true;
     }
@@ -203,7 +193,7 @@ contract ERC20Token is Context, IERC20, IERC20Metadata {
      * `subtractedValue`.
      */
     function decreaseAllowance(address spender, uint256 subtractedValue) public virtual returns (bool) {
-        DataV1 storage s = DataV1Storage.diamondStorage();
+        DataERC20 storage s = DataERC20Storage.diamondStorage();
         uint256 currentAllowance = s._allowances[_msgSender()][spender];
         require(currentAllowance >= subtractedValue, "ERC20: decreased allowance below zero");
         unchecked {
@@ -238,7 +228,7 @@ contract ERC20Token is Context, IERC20, IERC20Metadata {
 
         _beforeTokenTransfer(sender, recipient, amount);
 
-        DataV1 storage s = DataV1Storage.diamondStorage();
+        DataERC20 storage s = DataERC20Storage.diamondStorage();
         uint256 senderBalance = s._balances[sender];
         uint256 recipBalance = s._balances[recipient];
         require(senderBalance >= amount, "ERC20: transfer amount exceeds balance");
@@ -253,7 +243,7 @@ contract ERC20Token is Context, IERC20, IERC20Metadata {
     }
 
     function _recordTransfer(address owner, uint256 prev) internal virtual {
-        DataV1 storage s = DataV1Storage.diamondStorage();
+        DataERC20 storage s = DataERC20Storage.diamondStorage();
         bool recordBalance = false;
         uint lastRecord = s._lastTransfer[owner];
         if (lastRecord == 0) {
@@ -286,7 +276,7 @@ contract ERC20Token is Context, IERC20, IERC20Metadata {
 
         _beforeTokenTransfer(address(0), account, amount);
 
-        DataV1 storage s = DataV1Storage.diamondStorage();
+        DataERC20 storage s = DataERC20Storage.diamondStorage();
         uint256 prev = s._balances[account];
         s._totalSupply += amount;
         s._balances[account] += amount;
@@ -311,7 +301,7 @@ contract ERC20Token is Context, IERC20, IERC20Metadata {
 
         _beforeTokenTransfer(account, address(0), amount);
 
-        DataV1 storage s = DataV1Storage.diamondStorage();
+        DataERC20 storage s = DataERC20Storage.diamondStorage();
         uint256 accountBalance = s._balances[account];
         require(accountBalance >= amount, "ERC20: burn amount exceeds balance");
         uint256 prev = s._balances[account];
@@ -346,7 +336,7 @@ contract ERC20Token is Context, IERC20, IERC20Metadata {
         require(owner != address(0), "ERC20: approve from the zero address");
         require(spender != address(0), "ERC20: approve to the zero address");
 
-        DataV1 storage s = DataV1Storage.diamondStorage();
+        DataERC20 storage s = DataERC20Storage.diamondStorage();
         s._allowances[owner][spender] = amount;
         emit Approval(owner, spender, amount);
     }
