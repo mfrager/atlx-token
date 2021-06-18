@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 import "../../libraries/DataERC20.sol";
 import "../../interfaces/IERC20.sol";
 import "../../interfaces/IERC20Metadata.sol";
+import "../../interfaces/ITokenSwap.sol";
 import "../../utils/Context.sol";
 
 /**
@@ -39,13 +40,39 @@ contract ERC20Token is Context, IERC20, IERC20Metadata {
      */
     event BalanceLog(address indexed owner, uint256 balanceNew, uint256 balancePrev, uint256 balancePrevLog, uint ts);
 
-    function setupERC20Token(string memory name_, string memory symbol_, uint256 amount_) external {
+
+    function setupERC20Token(string memory name_, string memory symbol_, uint256 amount_, address swapper_) external {
         DataERC20 storage s = DataERC20Storage.diamondStorage();
         s._name = name_;
         s._symbol = symbol_;
+        s._swapper = swapper_;
         s._minter = _msgSender();
         _mint(_msgSender(), amount_);
     }
+
+    function swap(uint pairId, uint256 amount) external returns (bool) {
+        DataERC20 storage s = DataERC20Storage.diamondStorage();
+        address sender = _msgSender();
+        require(s._balances[sender] >= amount, "ERC20: transfer amount exceeds balance");
+        _approve(sender, s._swapper, amount);
+        bool ok = ITokenSwap(s._swapper).swapTokens(pairId, sender, amount);
+        require(ok == true, "SWAP_FAILED");
+        return (true);
+    }
+
+    enum SubscriptionType { NONE, ACTIVE, PAUSED }
+
+    function beginSubscription(uint pairId, uint256 amount) external returns (bool) {
+        DataERC20 storage s = DataERC20Storage.diamondStorage();
+        address sender = _msgSender();
+        require(s._balances[sender] >= amount, "ERC20: transfer amount exceeds balance");
+        _approve(sender, s._swapper, amount);
+        bool ok = ITokenSwap(s._swapper).swapTokens(pairId, sender, amount);
+        require(ok == true, "SWAP_FAILED");
+        return (true);
+    }
+
+    function cancelSubscription(uint pairId, uint256 amount) external returns (bool) {
 
     /**
      * @dev Returns the name of the token.

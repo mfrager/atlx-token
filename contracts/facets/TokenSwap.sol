@@ -54,12 +54,17 @@ contract TokenSwap is Context {
         return (true);
     }
 
-    function withdrawTokens(address forToken, address toAccount, uint256 fromAmount) external returns (bool) {
+    function withdrawTokens(address forToken, address toAccount, uint256 withdrawAmount) external returns (bool) {
+        DataTokenSwap storage s = DataTokenSwapStorage.diamondStorage();
+        require(s.tokenActive[forToken] == true, "INVALID_TO_TOKEN");
+        require(s.tokenBalances[forToken] >= withdrawAmount, "NOT_ENOUGH_TOKENS_TO_WITHDRAW");
+        bool ok = IERC20(forToken).transfer(toAccount, withdrawAmount);
+        require(ok == true, "ERC20_TRANSER_FAILED");
+        s.tokenBalances[forToken] = s.tokenBalances[forToken] - withdrawAmount;
         return (true);
     }
 
-    function swapTokens(uint pairId, uint256 fromAmount) external returns (bool) {
-        address fromAccount = _msgSender();
+    function swapTokens(uint pairId, address fromAccount, uint256 fromAmount) external returns (bool) {
         DataTokenSwap storage s = DataTokenSwapStorage.diamondStorage();
         SwapPair storage sp = s.swapPairs[pairId];
         require(sp.fromToken != address(0), "INVALID_SWAP_PAIR");
@@ -75,5 +80,6 @@ contract TokenSwap is Context {
         require(ok == true, "ERC20_TRANSER_OUT_FAILED");
 
         emit SwapTokens(fromAccount, pairId, fromAmount, fromAmount);
+        return (true);
     }
 }

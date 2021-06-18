@@ -15,6 +15,7 @@ def main():
     dmd1.diamondCut([
         [token1, 0, [
             token1.setupERC20Token.signature,
+            token1.swap.signature,
             token1.transfer.signature,
             token1.transferFrom.signature,
             token1.approve.signature,
@@ -32,8 +33,9 @@ def main():
     dmd2.diamondCut([
         [token2, 0, [
             token2.setupERC20Token.signature,
+            token2.swap.signature,
             token2.transfer.signature,
-            token1.transferFrom.signature,
+            token2.transferFrom.signature,
             token2.approve.signature,
             token2.balanceOf.signature,
         ]]
@@ -52,6 +54,7 @@ def main():
             token3.registerToken.signature,
             token3.registerSwapPair.signature,
             token3.depositTokens.signature,
+            token3.withdrawTokens.signature,
             token3.swapTokens.signature,
         ]]
     ], ZERO_ADDRESS, bytes(), {'from': accounts[0]})
@@ -64,8 +67,8 @@ def main():
     #input('Begin?')
 
     print('Setup')
-    print(erc1.setupERC20Token('Atellix', 'ATLX', 10000000, {'from': accounts[0]}))
-    print(erc2.setupERC20Token('Market Intelligence Token', 'MKIT', 10000000, {'from': accounts[0]}))
+    print(erc1.setupERC20Token('Atellix', 'ATLX', 10000000, tswp, {'from': accounts[0]}))
+    print(erc2.setupERC20Token('Market Intelligence Token', 'MKIT', 10000000, tswp, {'from': accounts[0]}))
     print('Transfer')
     print(erc1.transfer(accounts[1], 1000, {'from': accounts[0]}))
     print(erc1.transfer(accounts[2], 1000, {'from': accounts[0]}))
@@ -87,12 +90,15 @@ def main():
     print(tswp.registerSwapPair(1, dm1, dm2, 1, 1, {'from': accounts[0]}).events)
     print(tswp.depositTokens(dm1, accounts[0], 10000, {'from': accounts[0]}).events);
     print(tswp.depositTokens(dm2, accounts[0], 10000, {'from': accounts[0]}).events);
+    print(tswp.withdrawTokens(dm1, accounts[3], 1000, {'from': accounts[0]}).events);
+    print(tswp.withdrawTokens(dm2, accounts[3], 1000, {'from': accounts[0]}).events);
 
     print('Swap Balances')
     print(erc1.balanceOf(tswp, {'from': accounts[1]}))
     print(erc2.balanceOf(tswp, {'from': accounts[1]}))
-    print(erc1.approve(tswp, 250, {'from': accounts[1]}).events)
-    print(tswp.swapTokens(1, 250, {'from': accounts[1]}).events);
+    print(erc1.swap(1, 25000, {'from': accounts[1]}).events)
+    #print(erc1.approve(tswp, 250, {'from': accounts[1]}).events)
+    #print(tswp.swapTokens(1, accounts[1], 250, {'from': accounts[1]}).events)
     print(erc1.balanceOf(tswp, {'from': accounts[1]}))
     print(erc2.balanceOf(tswp, {'from': accounts[1]}))
 

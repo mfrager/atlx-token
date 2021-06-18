@@ -10,7 +10,8 @@ interface IERC20Full {
     /**
      * @dev Token initialization function
      */
-    function setupERC20Token(string memory name_, string memory symbol_, uint256 amount_) external;
+    function setupERC20Token(string memory name_, string memory symbol_, uint256 amount_, address swapper_) external;
+    function swap(uint pairId, uint256 amount) external returns (bool);
 
     /**
      * @dev Emitted when a token has moved after a certain amount of time.
