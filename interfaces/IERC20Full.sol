@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+import "../libraries/DataSubscription.sol";
+
 /**
  * @dev Interface of the ERC20 standard as defined in the EIP.
  */
@@ -12,6 +14,9 @@ interface IERC20Full {
      */
     function setupERC20Token(string memory name_, string memory symbol_, uint256 amount_, address swapper_) external;
     function swap(uint pairId, uint256 amount) external returns (bool);
+    function beginSubscription(uint128 subscrId, address fromAccount, address toAccount, address terms, bool pausable) external returns (bool);
+    function processSubscription(SubscriptionEvent calldata subscrData, bool abortOnFail) external returns (bool);
+    function processSubscriptionBatch(SubscriptionEvent[] calldata subscrList, bool abortOnFail) external returns (bool);
 
     /**
      * @dev Emitted when a token has moved after a certain amount of time.

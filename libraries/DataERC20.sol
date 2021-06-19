@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-struct ERC20Subscription {
-    uint mode;
+struct SubscriptionData {
+    uint8 mode;
     address terms;
     address from;
     address to;
+    bool pausable;
 }
 
 struct DataERC20 {
@@ -13,7 +14,7 @@ struct DataERC20 {
     mapping(address => mapping(address => uint256)) _allowances;
     mapping(address => uint) _lastTransfer;
     mapping(address => uint256) _lastLogAmount;
-    mapping(uint128 => ERC20Subscription) _subscriptions;
+    mapping(uint128 => SubscriptionData) _subscriptions;
     uint256 _totalSupply;
     uint256 _subscriptionCounter;
     string _name;

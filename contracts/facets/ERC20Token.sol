@@ -2,9 +2,11 @@
 pragma solidity ^0.8.0;
 
 import "../../libraries/DataERC20.sol";
+import "../../libraries/DataSubscription.sol";
 import "../../interfaces/IERC20.sol";
 import "../../interfaces/IERC20Metadata.sol";
 import "../../interfaces/ITokenSwap.sol";
+import "../../interfaces/ISubscriptionTerms.sol";
 import "../../utils/Context.sol";
 
 /**
@@ -60,19 +62,88 @@ contract ERC20Token is Context, IERC20, IERC20Metadata {
         return (true);
     }
 
-    enum SubscriptionType { NONE, ACTIVE, PAUSED }
-
-    function beginSubscription(uint pairId, uint256 amount) external returns (bool) {
+    function beginSubscription(uint128 subscrId, address fromAccount, address toAccount, address terms, bool pausable) external returns (bool) {
         DataERC20 storage s = DataERC20Storage.diamondStorage();
-        address sender = _msgSender();
-        require(s._balances[sender] >= amount, "ERC20: transfer amount exceeds balance");
-        _approve(sender, s._swapper, amount);
-        bool ok = ITokenSwap(s._swapper).swapTokens(pairId, sender, amount);
-        require(ok == true, "SWAP_FAILED");
+        // TODO: verify fromAccount
+        require(s._balances[fromAccount] >= 0, "ERC20_BALANCE_REQUIRED");
+        require(s._subscriptions[subscrId].mode == 0, "DUPLICATE_SUBSCRIPTION");
+        SubscriptionData storage sb = s._subscriptions[subscrId];
+        sb.mode = uint8(SubscriptionMode.ACTIVE);
+        sb.terms = terms;
+        sb.from = fromAccount;
+        sb.to = toAccount;
+        sb.pausable = pausable;
         return (true);
     }
 
-    function cancelSubscription(uint pairId, uint256 amount) external returns (bool) {
+    function processSubscription(SubscriptionEvent calldata subscrData, bool abortOnFail) external returns (bool) {
+        return _processSubscription(subscrData, abortOnFail);
+    }
+
+    function processSubscriptionBatch(SubscriptionEvent[] calldata subscrList, bool abortOnFail) external returns (bool) {
+        bool ok;
+        for (uint256 subscrIndex; subscrIndex < subscrList.length; subscrIndex++) {
+            ok = _processSubscription(subscrList[subscrIndex], false);
+            if (!ok && abortOnFail) {
+                string memory err = string(abi.encodePacked("SUBSCRIPTION_PROCESS_ERROR:", subscrList[subscrIndex].subscrId));
+                revert(err);
+            }
+        }
+        return(true);
+    }
+    
+    function _processSubscription(SubscriptionEvent memory subscrData, bool abortOnFail) internal returns (bool) {
+        uint128 subscrId = subscrData.subscrId;
+        DataERC20 storage s = DataERC20Storage.diamondStorage();
+        SubscriptionData storage sd = s._subscriptions[subscrId];
+        // TODO: Validate operator
+        if (sd.mode == uint8(SubscriptionMode.NONE)) {
+            require(abortOnFail == true, "INVALID_SUBSCRIPTION");
+            return(false);
+        }
+        if (sd.mode == uint8(SubscriptionMode.PAUSED)) {
+            if (subscrData.eventType == uint8(EventType.UNPAUSE)) {
+                s._subscriptions[subscrId].mode = uint8(SubscriptionMode.ACTIVE);
+            }
+            return(true);
+        } else if (subscrData.eventType == uint8(EventType.PAUSE)) {
+            if (!sd.pausable) {
+                if (abortOnFail) {
+                    revert("SUBSCRIPTION_NOT_PAUSABLE");
+                }
+                return(false);
+            }
+            s._subscriptions[subscrId].mode = uint8(SubscriptionMode.PAUSED);
+            return(true);
+        } else if (subscrData.eventType == uint8(EventType.CANCEL)) {
+            s._subscriptions[subscrId].mode = uint8(SubscriptionMode.CANCELLED);
+            return(true);
+        }
+        if (sd.mode == uint8(SubscriptionMode.CANCELLED)) {
+            require(abortOnFail == true, "CANCELLED_SUBSCRIPTION");
+            return(false);
+        }
+        uint8 res = ISubscriptionTerms(sd.terms).processTerms(subscrData);
+        if (res != uint8(EventResult.SUCCESS)) {
+            if (abortOnFail) {
+                string memory errtxt;
+                if (res == uint8(EventResult.ABORT)) {
+                    errtxt = "ABORT";
+                } else if (res == uint8(EventResult.EXCEED_BUDGET)) {
+                    errtxt = "EXCEED_BUDGET";
+                } else if (res == uint8(EventResult.DUPLICATE_PERIOD)) {
+                    errtxt = "DUPLICATE_PERIOD";
+                }
+                string memory err = string(abi.encodePacked("SUBSCRIPTION_TERMS_ERROR:", errtxt));
+                revert(err);
+            }
+            return(false);
+        }
+        // Ready to transfer
+        _transfer(sd.from, sd.to, subscrData.amount);
+
+        return(true);
+    }
 
     /**
      * @dev Returns the name of the token.
