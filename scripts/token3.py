@@ -52,12 +52,12 @@ def main():
     print(erc1.balanceOf(accounts[1], {'from': accounts[1]}))
     print('Subscribe')
     sbid = uuid.uuid4().bytes
-    print(erc1.beginSubscription(sbid, accounts[1], accounts[2], terms1, False, [2, 0, 0], {'from': accounts[1]}).events)
+    print(erc1.beginSubscription(sbid, accounts[1], accounts[2], terms1, False, [2, 60 * 60 * 48, 51], {'from': accounts[1]}).events)
     print('Process')
     evid = uuid.uuid4().bytes
     print(erc1.processSubscription([sbid, evid, 1, 50, ts_data()], True, {'from': accounts[2]}).events)
-    evid2 = uuid.uuid4().bytes
-    print(erc1.processSubscription([sbid, evid2, 1, 50, ts_data()], True, {'from': accounts[2]}).events)
+    #evid2 = uuid.uuid4().bytes
+    #print(erc1.processSubscription([sbid, evid2, 1, 50, ts_data()], True, {'from': accounts[2]}).events)
     print('Balance')
     print(erc1.balanceOf(accounts[1], {'from': accounts[1]}))
     print(erc1.balanceOf(accounts[2], {'from': accounts[2]}))

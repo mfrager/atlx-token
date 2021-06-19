@@ -29,5 +29,5 @@ struct SubscriptionSpec {
 enum SubscriptionMode { NONE, ACTIVE, CANCELLED, PAUSED }
 enum SubscriptionPeriod { INACTIVE, YEARLY, MONTHLY, WEEKLY, DAILY }
 enum EventType { CREATE, BILL, CANCEL, PAUSE, UNPAUSE }
-enum EventResult { SUCCESS, ABORT, EXCEED_BUDGET, DUPLICATE }
+enum EventResult { SUCCESS, ABORT, EXCEED_BUDGET, DUPLICATE, TIMEOUT }
 

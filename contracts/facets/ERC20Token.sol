@@ -142,6 +142,8 @@ contract ERC20Token is Context, IERC20, IERC20Metadata {
                     errtxt = "EXCEED_BUDGET";
                 } else if (res == uint8(EventResult.DUPLICATE)) {
                     errtxt = "DUPLICATE";
+                } else if (res == uint8(EventResult.TIMEOUT)) {
+                    errtxt = "TIMEOUT";
                 }
                 string memory err = string(abi.encodePacked("SUBSCRIPTION_TERMS_ERROR:", errtxt));
                 revert(err);
