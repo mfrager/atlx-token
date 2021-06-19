@@ -1,6 +1,7 @@
 import sys
 import time
 import uuid
+from datetime import datetime
 from brownie import Diamond, DiamondCut, ERC20Token, SubscriptionTerms, accounts, interface
 
 ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
@@ -30,7 +31,16 @@ def main():
 
     erc1 = interface.IERC20Full(dm1)
 
-    terms1 = SubscriptionTerms.deploy(0, 0, 1, {'from': accounts[1]});
+    terms1 = SubscriptionTerms.deploy({'from': accounts[1]});
+
+    def ts_data():
+        ts = time.time()
+        dt = datetime.fromtimestamp(ts)
+        yrs = dt.strftime('%Y').encode('utf8')[:4]
+        mth = dt.strftime('%Y%m').encode('utf8')[:6]
+        day = dt.strftime('%Y%m%d').encode('utf8')[:8]
+        print('Years: {}'.format(yrs))
+        return [ts, yrs, mth, day]
 
     #input('Begin?')
 
@@ -42,10 +52,12 @@ def main():
     print(erc1.balanceOf(accounts[1], {'from': accounts[1]}))
     print('Subscribe')
     sbid = uuid.uuid4().bytes
-    print(erc1.beginSubscription(sbid, accounts[1], accounts[2], terms1, False, {'from': accounts[1]}))
+    print(erc1.beginSubscription(sbid, accounts[1], accounts[2], terms1, False, [2, 0, 0], {'from': accounts[1]}).events)
     print('Process')
     evid = uuid.uuid4().bytes
-    print(erc1.processSubscription([sbid, evid, 1, 50], True, {'from': accounts[2]}))
+    print(erc1.processSubscription([sbid, evid, 1, 50, ts_data()], True, {'from': accounts[2]}).events)
+    evid2 = uuid.uuid4().bytes
+    print(erc1.processSubscription([sbid, evid2, 1, 50, ts_data()], True, {'from': accounts[2]}).events)
     print('Balance')
     print(erc1.balanceOf(accounts[1], {'from': accounts[1]}))
     print(erc1.balanceOf(accounts[2], {'from': accounts[2]}))

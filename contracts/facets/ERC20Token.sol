@@ -41,7 +41,9 @@ contract ERC20Token is Context, IERC20, IERC20Metadata {
      * @dev Emitted when a token has moved after a certain amount of time.
      */
     event BalanceLog(address indexed owner, uint256 balanceNew, uint256 balancePrev, uint256 balancePrevLog, uint ts);
-
+    event Subscription(uint128 indexed subscrId, address indexed from, address indexed to, address terms);
+    event SubscriptionUpdate(uint128 indexed subscrId, bool pausable, uint8 eventType, uint256 maxBudget, uint32 timeout, uint8 period);
+    event SubscriptionBill(uint128 indexed subscrId, uint128 indexed eventId, uint8 eventType, uint256 amount, uint64 timestamp, uint8 errorCode);
 
     function setupERC20Token(string memory name_, string memory symbol_, uint256 amount_, address swapper_) external {
         DataERC20 storage s = DataERC20Storage.diamondStorage();
@@ -62,17 +64,21 @@ contract ERC20Token is Context, IERC20, IERC20Metadata {
         return (true);
     }
 
-    function beginSubscription(uint128 subscrId, address fromAccount, address toAccount, address terms, bool pausable) external returns (bool) {
+    function beginSubscription(uint128 subscrId, address fromAccount, address toAccount, address terms, bool pausable, SubscriptionSpec calldata spec) external returns (bool) {
         DataERC20 storage s = DataERC20Storage.diamondStorage();
         // TODO: verify fromAccount
         require(s._balances[fromAccount] >= 0, "ERC20_BALANCE_REQUIRED");
         require(s._subscriptions[subscrId].mode == 0, "DUPLICATE_SUBSCRIPTION");
+        bool ok = ISubscriptionTerms(terms).updateSubscription(subscrId, spec);
+        require(ok, "UPDATE_SUBSCRIPTION_FAILED");
         SubscriptionData storage sb = s._subscriptions[subscrId];
         sb.mode = uint8(SubscriptionMode.ACTIVE);
         sb.terms = terms;
         sb.from = fromAccount;
         sb.to = toAccount;
         sb.pausable = pausable;
+        emit Subscription(subscrId, fromAccount, toAccount, terms);
+        emit SubscriptionUpdate(subscrId, pausable, uint8(EventType.CREATE), spec.maxBudget, spec.timeout, spec.period);
         return (true);
     }
 
@@ -104,6 +110,7 @@ contract ERC20Token is Context, IERC20, IERC20Metadata {
         if (sd.mode == uint8(SubscriptionMode.PAUSED)) {
             if (subscrData.eventType == uint8(EventType.UNPAUSE)) {
                 s._subscriptions[subscrId].mode = uint8(SubscriptionMode.ACTIVE);
+                emit SubscriptionUpdate(subscrId, true, subscrData.eventType, 0, 0, 0);
             }
             return(true);
         } else if (subscrData.eventType == uint8(EventType.PAUSE)) {
@@ -114,9 +121,11 @@ contract ERC20Token is Context, IERC20, IERC20Metadata {
                 return(false);
             }
             s._subscriptions[subscrId].mode = uint8(SubscriptionMode.PAUSED);
+            emit SubscriptionUpdate(subscrId, true, subscrData.eventType, 0, 0, 0);
             return(true);
         } else if (subscrData.eventType == uint8(EventType.CANCEL)) {
             s._subscriptions[subscrId].mode = uint8(SubscriptionMode.CANCELLED);
+            emit SubscriptionUpdate(subscrId, sd.pausable, subscrData.eventType, 0, 0, 0);
             return(true);
         }
         if (sd.mode == uint8(SubscriptionMode.CANCELLED)) {
@@ -131,17 +140,18 @@ contract ERC20Token is Context, IERC20, IERC20Metadata {
                     errtxt = "ABORT";
                 } else if (res == uint8(EventResult.EXCEED_BUDGET)) {
                     errtxt = "EXCEED_BUDGET";
-                } else if (res == uint8(EventResult.DUPLICATE_PERIOD)) {
-                    errtxt = "DUPLICATE_PERIOD";
+                } else if (res == uint8(EventResult.DUPLICATE)) {
+                    errtxt = "DUPLICATE";
                 }
                 string memory err = string(abi.encodePacked("SUBSCRIPTION_TERMS_ERROR:", errtxt));
                 revert(err);
             }
+            emit SubscriptionBill(subscrId, subscrData.eventId, subscrData.eventType, subscrData.amount, subscrData.thisBill.timestamp, res);
             return(false);
         }
         // Ready to transfer
         _transfer(sd.from, sd.to, subscrData.amount);
-
+        emit SubscriptionBill(subscrId, subscrData.eventId, subscrData.eventType, subscrData.amount, subscrData.thisBill.timestamp, res);
         return(true);
     }
 
