@@ -23,7 +23,7 @@ contract SubscriptionTerms is Context {
 
     function processTerms(SubscriptionEvent calldata subscrEvent) external returns (uint8) {
         SubscriptionSpec memory spec = _spec[subscrEvent.subscrId];
-        require(spec.period != uint8(SubscriptionPeriod.INACTIVE), "INVALID_SUBSCRIPTION");
+        require(spec.period != uint8(SubscriptionPeriod.INACTIVE), "INACTIVE_SUBSCRIPTION");
         if (uint128(block.timestamp) - subscrEvent.thisBill.timestamp >= spec.timeout) {
             return(uint8(EventResult.TIMEOUT));
         }

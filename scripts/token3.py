@@ -17,7 +17,7 @@ def main():
     dmd1.diamondCut([
         [token1, 0, [
             token1.setupERC20Token.signature,
-            token1.swap.signature,
+            #token1.swap.signature,
             token1.transfer.signature,
             token1.transferFrom.signature,
             token1.approve.signature,

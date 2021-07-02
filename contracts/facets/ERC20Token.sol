@@ -54,7 +54,8 @@ contract ERC20Token is Context, IERC20, IERC20Metadata {
         _mint(_msgSender(), amount_);
     }
 
-    function swap(uint pairId, uint256 amount) external returns (bool) {
+    // Withdraw tokens via swap
+    /* function swap(uint pairId, uint256 amount) external returns (bool) {
         DataERC20 storage s = DataERC20Storage.diamondStorage();
         address sender = _msgSender();
         require(s._balances[sender] >= amount, "ERC20: transfer amount exceeds balance");
@@ -62,7 +63,7 @@ contract ERC20Token is Context, IERC20, IERC20Metadata {
         bool ok = ITokenSwap(s._swapper).swapTokens(pairId, sender, amount);
         require(ok == true, "SWAP_FAILED");
         return (true);
-    }
+    } */
 
     function beginSubscription(uint128 subscrId, address fromAccount, address toAccount, address terms, bool pausable, SubscriptionSpec calldata spec) external returns (bool) {
         DataERC20 storage s = DataERC20Storage.diamondStorage();

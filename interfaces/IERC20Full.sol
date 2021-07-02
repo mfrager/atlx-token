@@ -13,7 +13,7 @@ interface IERC20Full {
      * @dev Token initialization function
      */
     function setupERC20Token(string memory name_, string memory symbol_, uint256 amount_, address swapper_) external;
-    function swap(uint pairId, uint256 amount) external returns (bool);
+    // function swap(uint pairId, uint256 amount) external returns (bool);
     function beginSubscription(uint128 subscrId, address fromAccount, address toAccount, address terms, bool pausable, SubscriptionSpec calldata spec) external returns (bool);
     function processSubscription(SubscriptionEvent calldata subscrData, bool abortOnFail) external returns (bool);
     function processSubscriptionBatch(SubscriptionEvent[] calldata subscrList, bool abortOnFail) external returns (bool);
