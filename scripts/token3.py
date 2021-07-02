@@ -1,7 +1,7 @@
 import sys
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from brownie import Diamond, DiamondCut, ERC20Token, SubscriptionTerms, accounts, interface
 
 ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
@@ -35,12 +35,17 @@ def main():
 
     def ts_data():
         ts = time.time()
-        dt = datetime.fromtimestamp(ts)
+        dt = datetime.fromtimestamp(ts).replace(tzinfo=timezone.utc)
         yrs = dt.strftime('%Y').encode('utf8')[:4]
+        q = str(((dt.month - 1) // 3) + 1).encode('utf8')
+        qtr = dt.strftime('%Y').encode('utf8')[:4] + q
         mth = dt.strftime('%Y%m').encode('utf8')[:6]
+        w = str(dt.isocalendar()[1]).zfill(2).encode('utf8')[:2]
+        wkn = dt.strftime('%Y').encode('utf8')[:4] + w
         day = dt.strftime('%Y%m%d').encode('utf8')[:8]
-        print('Years: {}'.format(yrs))
-        return [ts, yrs, mth, day]
+        res = [int(ts), yrs, qtr, mth, wkn, day]
+        print('TS Data: {}'.format(res))
+        return res
 
     #input('Begin?')
 
@@ -52,12 +57,12 @@ def main():
     print(erc1.balanceOf(accounts[1], {'from': accounts[1]}))
     print('Subscribe')
     sbid = uuid.uuid4().bytes
-    print(erc1.beginSubscription(sbid, accounts[1], accounts[2], terms1, False, [2, 60 * 60 * 48, 51], {'from': accounts[1]}).events)
+    print(erc1.beginSubscription(sbid, accounts[1], accounts[2], terms1, False, [0, 60 * 60 * 48, 51], {'from': accounts[1]}).events)
     print('Process')
     evid = uuid.uuid4().bytes
     print(erc1.processSubscription([sbid, evid, 1, 50, ts_data()], True, {'from': accounts[2]}).events)
-    #evid2 = uuid.uuid4().bytes
-    #print(erc1.processSubscription([sbid, evid2, 1, 50, ts_data()], True, {'from': accounts[2]}).events)
+    evid2 = uuid.uuid4().bytes
+    print(erc1.processSubscription([sbid, evid2, 1, 50, ts_data()], True, {'from': accounts[2]}).events)
     print('Balance')
     print(erc1.balanceOf(accounts[1], {'from': accounts[1]}))
     print(erc1.balanceOf(accounts[2], {'from': accounts[2]}))
