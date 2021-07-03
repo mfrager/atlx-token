@@ -27,8 +27,27 @@ struct SubscriptionSpec {
     uint256 maxBudget;
 }
 
+struct ActionSwap {
+    address swapToken;
+    uint swapPairId;
+    uint256 swapAmount;
+}
+
+struct ActionSubscribe {
+    uint128 subscrId;
+    address subscrTerms;
+    address subscrTo;
+    bool pausable;
+    bool fund;
+    uint128 fundId;
+    uint256 fundAmount;
+    TimestampData fundTimestamp;
+    SubscriptionSpec subscrSpec;
+}
+
 enum SubscriptionMode { NONE, ACTIVE, CANCELLED, PAUSED }
 enum SubscriptionPeriod { INACTIVE, YEARLY, QUARTERLY, MONTHLY, WEEKLY, DAILY }
-enum EventType { CREATE, BILL, CANCEL, PAUSE, UNPAUSE }
+enum EventType { CREATE, BILL, CANCEL, PAUSE, UNPAUSE, FUND }
 enum EventResult { SUCCESS, ABORT, EXCEED_BUDGET, DUPLICATE, TIMEOUT }
+enum ActionType { SWAP, SUBSCRIBE }
 

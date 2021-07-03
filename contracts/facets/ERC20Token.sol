@@ -65,7 +65,46 @@ contract ERC20Token is Context, IERC20, IERC20Metadata {
         return (true);
     } */
 
+    function actionBatch(uint8[] calldata actionList, ActionSwap[] calldata swapList, ActionSubscribe[] calldata subscribeList) external returns (bool) {
+        uint8 swapIdx;
+        uint8 subscribeIdx;
+        uint8 action;
+        for (uint8 actionIdx; actionIdx < actionList.length; actionIdx++) {
+            action = actionList[actionIdx];
+            if (action == uint8(ActionType.SWAP)) {
+                _action_swap(swapList[swapIdx]);
+                swapIdx++;
+            } else if (action == uint8(ActionType.SUBSCRIBE)) {
+                _action_subscribe(subscribeList[subscribeIdx]);
+                subscribeIdx++;
+            }
+        }
+        return(true);
+    }
+
+    function _action_swap(ActionSwap calldata act) internal {
+        bool ok = ITokenSwap(act.swapToken).swapTokens(act.swapPairId, _msgSender(), act.swapAmount);
+        require(ok == true, "SWAP_FAILED");
+    }
+
+    function _action_subscribe(ActionSubscribe calldata act) internal {
+        _beginSubscription(act.subscrId, _msgSender(), act.subscrTo, act.subscrTerms, act.pausable, act.subscrSpec);
+        if (act.fund) {
+            SubscriptionEvent memory fund;
+            fund.subscrId = act.subscrId;
+            fund.eventId = act.fundId;
+            fund.eventType = uint8(EventType.FUND);
+            fund.amount = act.fundAmount;
+            fund.thisBill = act.fundTimestamp;
+            _processSubscription(fund, true);
+        }
+    }
+
     function beginSubscription(uint128 subscrId, address fromAccount, address toAccount, address terms, bool pausable, SubscriptionSpec calldata spec) external returns (bool) {
+        return _beginSubscription(subscrId, fromAccount, toAccount, terms, pausable, spec);
+    }
+
+    function _beginSubscription(uint128 subscrId, address fromAccount, address toAccount, address terms, bool pausable, SubscriptionSpec calldata spec) internal returns (bool) {
         DataERC20 storage s = DataERC20Storage.diamondStorage();
         // TODO: verify fromAccount
         require(s._balances[fromAccount] >= 0, "ERC20_BALANCE_REQUIRED");
@@ -107,6 +146,11 @@ contract ERC20Token is Context, IERC20, IERC20Metadata {
         if (sd.mode == uint8(SubscriptionMode.NONE)) {
             require(abortOnFail == true, "INVALID_SUBSCRIPTION");
             return(false);
+        }
+        if (subscrData.eventType == uint8(EventType.FUND)) {
+            _transfer(sd.from, sd.to, subscrData.amount);
+            emit SubscriptionBill(subscrId, subscrData.eventId, subscrData.eventType, subscrData.amount, subscrData.thisBill.timestamp, uint8(EventResult.SUCCESS));
+            return(true);
         }
         if (sd.mode == uint8(SubscriptionMode.PAUSED)) {
             if (subscrData.eventType == uint8(EventType.UNPAUSE)) {
@@ -263,7 +307,13 @@ contract ERC20Token is Context, IERC20, IERC20Metadata {
 
         DataERC20 storage s = DataERC20Storage.diamondStorage();
         uint256 currentAllowance = s._allowances[sender][_msgSender()];
-        require(currentAllowance >= amount, "ERC20: transfer amount exceeds allowance");
+
+        //require(currentAllowance >= amount, "ERC20: transfer amount exceeds allowance");
+        if (currentAllowance < amount) {
+            string memory err = string(abi.encodePacked("ERC20_TRANSER_EXCEEDS_ALLOWANCE:", _toString(_msgSender())));
+            revert(err);
+        }
+
         unchecked {
             _approve(sender, _msgSender(), currentAllowance - amount);
         }
@@ -335,7 +385,12 @@ contract ERC20Token is Context, IERC20, IERC20Metadata {
     ) internal virtual {
         require(sender != address(0), "ERC20: transfer from the zero address");
         require(recipient != address(0), "ERC20: transfer to the zero address");
-        require(recipient != sender, "ERC20: transfer to same address as sender");
+        //require(recipient != sender, "ERC20: transfer to same address as sender");
+
+        if (recipient == sender) {
+            string memory err = string(abi.encodePacked("ERC20_TRANSER_SAME_ADDRESS:", _toString(_msgSender())));
+            revert(err);
+        }
 
         _beforeTokenTransfer(sender, recipient, amount);
 

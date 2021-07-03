@@ -17,6 +17,7 @@ interface IERC20Full {
     function beginSubscription(uint128 subscrId, address fromAccount, address toAccount, address terms, bool pausable, SubscriptionSpec calldata spec) external returns (bool);
     function processSubscription(SubscriptionEvent calldata subscrData, bool abortOnFail) external returns (bool);
     function processSubscriptionBatch(SubscriptionEvent[] calldata subscrList, bool abortOnFail) external returns (bool);
+    function actionBatch(uint8[] calldata actionList, ActionSwap[] calldata swapList, ActionSubscribe[] calldata subscribeList) external returns (bool);
 
     /**
      * @dev Emitted when a token has moved after a certain amount of time.

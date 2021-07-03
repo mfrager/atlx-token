@@ -49,11 +49,12 @@ contract TokenSwap is Context {
         DataTokenSwap storage s = DataTokenSwapStorage.diamondStorage();
         require(s.tokenActive[fromToken] == true, "INVALID_FROM_TOKEN");
         bool ok = IERC20(fromToken).transferFrom(fromAccount, address(this), fromAmount);
-        require(ok == true, "ERC20_TRANSER_FAILED");
+        require(ok == true, "ERC20_TRANSER_FROM_FAILED");
         s.tokenBalances[fromToken] = s.tokenBalances[fromToken] + fromAmount;
         return (true);
     }
 
+    // withdrawTokens - Only for SwapToken owner. Other accounts own the other tokens themselves.
     function withdrawTokens(address forToken, address toAccount, uint256 withdrawAmount) external returns (bool) {
         DataTokenSwap storage s = DataTokenSwapStorage.diamondStorage();
         require(s.tokenActive[forToken] == true, "INVALID_TO_TOKEN");
