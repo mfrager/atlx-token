@@ -29,12 +29,20 @@ def main():
     # accounts[1] - Internal Stablecoin Owner
     # accounts[2] - Revenue
     # accounts[3] - User
+    # accounts[4] - Circulating Stablecoin Admin
+    # accounts[5] - Internal Stablecoin Admin
 
     token1 = ERC20Token.deploy({'from': accounts[0]}) # Circulating Stablecoin
     dcf1 = DiamondCut.deploy({'from': accounts[0]})
     dm1 = Diamond.deploy([
-        [dcf1, 0, [dcf1.diamondCut.signature]]
-    ], [accounts[0]], {'from': accounts[0]})
+        [dcf1, 0, [
+            dcf1.diamondCut.signature,
+            dcf1.transferOwnership.signature,
+            dcf1.transferAdministrator.signature,
+            dcf1.owner.signature,
+            dcf1.admin.signature,
+        ]]
+    ], [accounts[0], accounts[4]], {'from': accounts[0]})
     dmd1 = interface.IDiamondCut(dm1)
     dmd1.diamondCut([
         [token1, 0, [
@@ -47,11 +55,16 @@ def main():
     ], ZERO_ADDRESS, bytes(), {'from': accounts[0]})
     print('Diamond 1: {}'.format(dm1))
 
+    down1 = interface.IDiamondOwner(dm1)
+    print('Diamond 1 Owner: {}'.format(down1.owner({'from': accounts[0]})))
+    dadm1 = interface.IDiamondAdmin(dm1)
+    print('Diamond 1 Admin: {}'.format(dadm1.admin({'from': accounts[0]})))
+
     token2 = ERC20Token.deploy({'from': accounts[1]}) # Internal Stablecoin
     dcf2 = DiamondCut.deploy({'from': accounts[1]})
     dm2 = Diamond.deploy([
         [dcf2, 0, [dcf2.diamondCut.signature]]
-    ], [accounts[1]], {'from': accounts[1]})
+    ], [accounts[1], accounts[5]], {'from': accounts[1]})
     dmd2 = interface.IDiamondCut(dm2)
     dmd2.diamondCut([
         [token2, 0, [
@@ -72,7 +85,7 @@ def main():
     dcf3 = DiamondCut.deploy({'from': accounts[1]})
     dm3 = Diamond.deploy([
         [dcf3, 0, [dcf3.diamondCut.signature]]
-    ], [accounts[1]], {'from': accounts[1]})
+    ], [accounts[1], accounts[5]], {'from': accounts[1]})
     dmd3 = interface.IDiamondCut(dm3)
     print(token3.registerToken.signature)
     dmd3.diamondCut([

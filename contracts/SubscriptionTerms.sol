@@ -2,9 +2,10 @@
 pragma solidity ^0.8.0;
 
 import "../../libraries/DataSubscription.sol";
+import "../../libraries/ReentrancyGuard.sol";
 import "../../utils/Context.sol";
 
-contract SubscriptionTerms is Context {
+contract SubscriptionTerms is Context, ReentrancyGuard {
 
     mapping(uint128 => mapping(bytes4 => bool)) _yearly;
     mapping(uint128 => mapping(bytes5 => bool)) _quarterly;
@@ -13,7 +14,7 @@ contract SubscriptionTerms is Context {
     mapping(uint128 => mapping(bytes8 => bool)) _daily;
     mapping(uint128 => SubscriptionSpec) _spec;
 
-    function updateSubscription(uint128 subscrId, SubscriptionSpec calldata inputSpec) external returns (bool) {
+    function updateSubscription(uint128 subscrId, SubscriptionSpec calldata inputSpec) external nonReentrant returns (bool) {
         SubscriptionSpec storage sp = _spec[subscrId];
         sp.period = inputSpec.period;
         sp.timeout = inputSpec.timeout;
@@ -21,7 +22,7 @@ contract SubscriptionTerms is Context {
         return(true);
     }
 
-    function processTerms(SubscriptionEvent calldata subscrEvent) external returns (uint8) {
+    function processTerms(SubscriptionEvent calldata subscrEvent) external nonReentrant returns (uint8) {
         SubscriptionSpec memory spec = _spec[subscrEvent.subscrId];
         require(spec.period != uint8(SubscriptionPeriod.INACTIVE), "INACTIVE_SUBSCRIPTION");
         if (uint128(block.timestamp) - subscrEvent.thisBill.timestamp >= spec.timeout) {

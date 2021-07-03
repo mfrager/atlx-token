@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import "../../libraries/DataERC20.sol";
 import "../../libraries/DataSubscription.sol";
+import "../../libraries/ReentrancyGuard.sol";
 import "../../interfaces/IERC20.sol";
 import "../../interfaces/IERC20Metadata.sol";
 import "../../interfaces/ITokenSwap.sol";
@@ -33,7 +34,7 @@ import "../../utils/Context.sol";
  * functions have been added to mitigate the well-known issues around setting
  * allowances. See {IERC20-approve}.
  */
-contract ERC20Token is Context, IERC20, IERC20Metadata {
+contract ERC20Token is Context, ReentrancyGuard, IERC20, IERC20Metadata {
 
     uint constant TRANSFER_LOG_WAIT_SECONDS = 24 * 60 * 60; // 1 per day
 
@@ -45,7 +46,7 @@ contract ERC20Token is Context, IERC20, IERC20Metadata {
     event SubscriptionUpdate(uint128 indexed subscrId, bool pausable, uint8 eventType, uint256 maxBudget, uint32 timeout, uint8 period);
     event SubscriptionBill(uint128 indexed subscrId, uint128 indexed eventId, uint8 eventType, uint256 amount, uint64 timestamp, uint8 errorCode);
 
-    function setupERC20Token(string memory name_, string memory symbol_, uint256 amount_, address swapper_) external {
+    function setupERC20Token(string memory name_, string memory symbol_, uint256 amount_, address swapper_) external nonReentrant {
         DataERC20 storage s = DataERC20Storage.diamondStorage();
         s._name = name_;
         s._symbol = symbol_;
@@ -55,7 +56,7 @@ contract ERC20Token is Context, IERC20, IERC20Metadata {
     }
 
     // Withdraw tokens via swap
-    /* function swap(uint pairId, uint256 amount) external returns (bool) {
+    /* function swap(uint pairId, uint256 amount) external nonReentrant returns (bool) {
         DataERC20 storage s = DataERC20Storage.diamondStorage();
         address sender = _msgSender();
         require(s._balances[sender] >= amount, "ERC20: transfer amount exceeds balance");
@@ -65,7 +66,7 @@ contract ERC20Token is Context, IERC20, IERC20Metadata {
         return (true);
     } */
 
-    function actionBatch(uint8[] calldata actionList, ActionSwap[] calldata swapList, ActionSubscribe[] calldata subscribeList) external returns (bool) {
+    function actionBatch(uint8[] calldata actionList, ActionSwap[] calldata swapList, ActionSubscribe[] calldata subscribeList) external nonReentrant returns (bool) {
         uint8 swapIdx;
         uint8 subscribeIdx;
         uint8 action;
@@ -100,7 +101,7 @@ contract ERC20Token is Context, IERC20, IERC20Metadata {
         }
     }
 
-    function beginSubscription(uint128 subscrId, address fromAccount, address toAccount, address terms, bool pausable, SubscriptionSpec calldata spec) external returns (bool) {
+    function beginSubscription(uint128 subscrId, address fromAccount, address toAccount, address terms, bool pausable, SubscriptionSpec calldata spec) external nonReentrant returns (bool) {
         return _beginSubscription(subscrId, fromAccount, toAccount, terms, pausable, spec);
     }
 
@@ -122,11 +123,11 @@ contract ERC20Token is Context, IERC20, IERC20Metadata {
         return (true);
     }
 
-    function processSubscription(SubscriptionEvent calldata subscrData, bool abortOnFail) external returns (bool) {
+    function processSubscription(SubscriptionEvent calldata subscrData, bool abortOnFail) external nonReentrant returns (bool) {
         return _processSubscription(subscrData, abortOnFail);
     }
 
-    function processSubscriptionBatch(SubscriptionEvent[] calldata subscrList, bool abortOnFail) external returns (bool) {
+    function processSubscriptionBatch(SubscriptionEvent[] calldata subscrList, bool abortOnFail) external nonReentrant returns (bool) {
         bool ok;
         for (uint256 subscrIndex; subscrIndex < subscrList.length; subscrIndex++) {
             ok = _processSubscription(subscrList[subscrIndex], false);

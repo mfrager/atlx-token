@@ -32,9 +32,10 @@ library LibDiamond {
         address[] facetAddresses;
         // Used to query if a contract implements an interface.
         // Used to implement ERC-165.
-        mapping(bytes4 => bool) supportedInterfaces;
+        // mapping(bytes4 => bool) supportedInterfaces; // Implemented elsewhere
         // owner of the contract
         address contractOwner;
+        address contractAdmin;
     }
 
     function diamondStorage() internal pure returns (DiamondStorage storage ds) {
@@ -44,21 +45,34 @@ library LibDiamond {
         }
     }
 
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner, bool admin);
 
     function setContractOwner(address _newOwner) internal {
         DiamondStorage storage ds = diamondStorage();
         address previousOwner = ds.contractOwner;
         ds.contractOwner = _newOwner;
-        emit OwnershipTransferred(previousOwner, _newOwner);
+        emit OwnershipTransferred(previousOwner, _newOwner, false);
+    }
+
+    function setContractAdmin(address _newAdmin) internal {
+        DiamondStorage storage ds = diamondStorage();
+        address previousAdmin = ds.contractAdmin;
+        ds.contractAdmin = _newAdmin;
+        emit OwnershipTransferred(previousAdmin, _newAdmin, true);
     }
 
     function contractOwner() internal view returns (address contractOwner_) {
         contractOwner_ = diamondStorage().contractOwner;
     }
 
-    function enforceIsContractOwner() internal view {
-        require(msg.sender == diamondStorage().contractOwner, "LibDiamond: Must be contract owner");
+    function contractAdmin() internal view returns (address contractAdmin_) {
+        contractAdmin_ = diamondStorage().contractAdmin;
+    }
+
+    // Owner or Admin
+    function enforceAccess() internal view {
+        DiamondStorage storage ds = diamondStorage();
+        require(msg.sender == ds.contractOwner || msg.sender == ds.contractAdmin, "LibDiamond: Must be contract owner or admin");
     }
 
     event DiamondCut(IDiamondCut.FacetCut[] _diamondCut, address _init, bytes _calldata);
@@ -83,6 +97,10 @@ library LibDiamond {
         }
         emit DiamondCut(_diamondCut, _init, _calldata);
         initializeDiamondCut(_init, _calldata);
+        /* DiamondStorage storage ds = diamondStorage();
+        if (ds.contractOwner == address(0)) {
+            ds.contractOwner = msg.sender;
+        } */
     }
 
     function addFunctions(address _facetAddress, bytes4[] memory _functionSelectors) internal {

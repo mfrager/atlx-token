@@ -22,6 +22,7 @@ abstract contract Context {
         return msg.data;
     }
 
+    // Additional string functions
     function _toString(address account) public pure returns(string memory) {
         return _toString(abi.encodePacked(account));
     }

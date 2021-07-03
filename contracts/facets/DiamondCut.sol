@@ -10,11 +10,10 @@ pragma experimental ABIEncoderV2;
 import "../../libraries/LibDiamond.sol";
 import "../../interfaces/IDiamondCut.sol";
 import "../../interfaces/IDiamondLoupe.sol";
-//import "../../interfaces/IDiamondInterface.sol"; // TODO
-import "../../interfaces/IERC165.sol";
+//import "../../interfaces/IERC165.sol";
 import "../../interfaces/IERC173.sol";
 
-contract DiamondCut is IDiamondCut, IDiamondLoupe, IERC165, IERC173 {
+contract DiamondCut is IDiamondCut, IDiamondLoupe, IERC173 {
     // Diamond Cut Functions
     /// @notice Add/replace/remove any number of functions and optionally execute
     ///         a function with delegatecall
@@ -27,7 +26,7 @@ contract DiamondCut is IDiamondCut, IDiamondLoupe, IERC165, IERC173 {
         address _init,
         bytes calldata _calldata
     ) external override {
-        LibDiamond.enforceIsContractOwner();
+        LibDiamond.enforceAccess();
         LibDiamond.diamondCut(_diamondCut, _init, _calldata);
     }
 
@@ -77,21 +76,30 @@ contract DiamondCut is IDiamondCut, IDiamondLoupe, IERC165, IERC173 {
         facetAddress_ = ds.selectorToFacetAndPosition[_functionSelector].facetAddress;
     }
 
-    // This implements ERC-165.
-    function supportsInterface(bytes4 _interfaceId) external override view returns (bool) {
+    // This implements ERC-165. (Implemented elsewhere)
+    /* function supportsInterface(bytes4 _interfaceId) external override view returns (bool) {
         LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
         return ds.supportedInterfaces[_interfaceId];
-    }
+    } */
 
     // TODO: Add/remove interface
 
     // Ownership Facet implementing ERC-173.
     function transferOwnership(address _newOwner) external override {
-        LibDiamond.enforceIsContractOwner();
+        LibDiamond.enforceAccess();
         LibDiamond.setContractOwner(_newOwner);
     }
 
     function owner() external override view returns (address owner_) {
         owner_ = LibDiamond.contractOwner();
+    }
+
+    function transferAdministrator(address _newAdmin) external {
+        LibDiamond.enforceAccess();
+        LibDiamond.setContractAdmin(_newAdmin);
+    }
+
+    function admin() external view returns (address admin_) {
+        admin_ = LibDiamond.contractAdmin();
     }
 }

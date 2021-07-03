@@ -2,16 +2,17 @@
 pragma solidity ^0.8.0;
 
 import "../../libraries/DataTokenSwap.sol";
+import "../../libraries/ReentrancyGuard.sol";
 import "../../interfaces/IERC20.sol";
 import "../../utils/Context.sol";
 
-contract TokenSwap is Context {
+contract TokenSwap is Context, ReentrancyGuard {
 
     event RegisterToken(address indexed token, string label);
     event RegisterSwapPair(uint indexed pair, address indexed fromToken, address indexed toToken, uint fromRate, uint toRate);
     event SwapTokens(address indexed fromAccount, uint pair, uint256 fromAmount, uint256 toAmount);
 
-    function registerToken(address tokenContract, string memory label) external returns (bool) {
+    function registerToken(address tokenContract, string memory label) external nonReentrant returns (bool) {
         DataTokenSwap storage s = DataTokenSwapStorage.diamondStorage();
         bytes32 lookupHash = keccak256(abi.encode(label));
         require(s.tokenLookup[lookupHash] == address(0), "DUPLICATE_TOKEN");
@@ -21,7 +22,7 @@ contract TokenSwap is Context {
         return (true);
     }
 
-    function registerSwapPair(uint pairId, address fromToken, address toToken, uint fromRate, uint toRate) external returns (bool) {
+    function registerSwapPair(uint pairId, address fromToken, address toToken, uint fromRate, uint toRate) external nonReentrant returns (bool) {
         DataTokenSwap storage s = DataTokenSwapStorage.diamondStorage();
         SwapPair storage sp = s.swapPairs[pairId];
         require(sp.fromToken == address(0), "DUPLICATE_SWAP_PAIR");
@@ -45,7 +46,7 @@ contract TokenSwap is Context {
         return (true);
     }
 
-    function depositTokens(address fromToken, address fromAccount, uint256 fromAmount) external returns (bool) {
+    function depositTokens(address fromToken, address fromAccount, uint256 fromAmount) external nonReentrant returns (bool) {
         DataTokenSwap storage s = DataTokenSwapStorage.diamondStorage();
         require(s.tokenActive[fromToken] == true, "INVALID_FROM_TOKEN");
         bool ok = IERC20(fromToken).transferFrom(fromAccount, address(this), fromAmount);
@@ -55,7 +56,7 @@ contract TokenSwap is Context {
     }
 
     // withdrawTokens - Only for SwapToken owner. Other accounts own the other tokens themselves.
-    function withdrawTokens(address forToken, address toAccount, uint256 withdrawAmount) external returns (bool) {
+    function withdrawTokens(address forToken, address toAccount, uint256 withdrawAmount) external nonReentrant returns (bool) {
         DataTokenSwap storage s = DataTokenSwapStorage.diamondStorage();
         require(s.tokenActive[forToken] == true, "INVALID_TO_TOKEN");
         require(s.tokenBalances[forToken] >= withdrawAmount, "NOT_ENOUGH_TOKENS_TO_WITHDRAW");
@@ -65,7 +66,7 @@ contract TokenSwap is Context {
         return (true);
     }
 
-    function swapTokens(uint pairId, address fromAccount, uint256 fromAmount) external returns (bool) {
+    function swapTokens(uint pairId, address fromAccount, uint256 fromAmount) external nonReentrant returns (bool) {
         DataTokenSwap storage s = DataTokenSwapStorage.diamondStorage();
         SwapPair storage sp = s.swapPairs[pairId];
         require(sp.fromToken != address(0), "INVALID_SWAP_PAIR");
