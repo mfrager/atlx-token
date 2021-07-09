@@ -152,20 +152,20 @@ def main():
     #    [tswp, 1, 500], # Swap
     #], [], {'from': accounts[3]}).events) # batch action
 
-    #sbid = uuid.uuid4().bytes
-    #fid = uuid.uuid4().bytes
-    #print(erc2.actionBatch([0, 1], [
-    #    [tswp, 1, 1000], # Swap
-    #], [
-    #    [sbid, accounts[2], False, True, fid, 10, ts_data(), [3, 60 * 60 * 48, 100]], # Subscribe
-    #], {'from': accounts[3]}).events) # batch action
+    sbid = uuid.uuid4().bytes
+    fid = uuid.uuid4().bytes
+    print(erc2.actionBatch(accounts[3], [0, 1], [
+        [tswp, accounts[3], 1, 1000 * (10**18)], # Swap
+    ], [
+        [sbid, accounts[3], False, True, fid, 10 * (10**18), ts_data(), [3, 60 * 60 * 48, 100 * (10**18)]], # Subscribe
+    ], {'from': accounts[1]}).events) # batch action
 
     #print('Swap')
     #print(tswp.swapTokens(1, accounts[3], 100, {'from': accounts[3]}).events); # SAAS owner swaps User's VUSD for SAAS
-    #print(tswp.withdrawTokens(dm2, accounts[3], 100, {'from': accounts[1]}).events);
 
     print('Buy')
     print(tswp.buyTokens(2, {'from': accounts[3], 'value': (3*(10**18))}).events); # SAAS owner swaps User's VUSD for SAAS
+    print(tswp.withdrawTokens(ONE_ADDRESS, accounts[3], 1**(10**18), {'from': accounts[1]}).events);
 
     print('Balance')
     print('User VUSD: {}'.format(erc1.balanceOf(accounts[3], {'from': accounts[3]}) / (10**18)))

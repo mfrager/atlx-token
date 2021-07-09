@@ -35,6 +35,7 @@ struct SubscriptionSpec {
 
 struct ActionSwap {
     address swapToken;
+    address fromAccount;
     uint32 swapPairId;
     uint256 swapAmount;
 }

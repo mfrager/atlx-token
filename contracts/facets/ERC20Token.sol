@@ -89,10 +89,14 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
         return(true);
     }
 
-    function actionBatch(uint8[] calldata actionList, ActionSwap[] calldata swapList, ActionSubscribe[] calldata subscribeList) external nonReentrant returns (bool) {
+    function actionBatch(address account, uint8[] calldata actionList, ActionSwap[] calldata swapList, ActionSubscribe[] calldata subscribeList) external nonReentrant returns (bool) {
         address sender = _msgSender();
         DataERC20 storage s = DataERC20Storage.diamondStorage();
-        require(!s._subscriptionAdmin[sender], "END_USERS_ONLY");
+        if (s._subscriptionAdmin[sender]) {
+            require(hasRole(SUBSCRIPTION_ADMIN_ROLE, sender), "ROLE_ACCESS_DENIED");
+        } else {
+            require(sender == account, "ACCOUNT_ACCESS_DENIED");
+        }
         uint8 swapIdx;
         uint8 subscribeIdx;
         uint8 action;
@@ -102,7 +106,7 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
                 _action_swap(swapList[swapIdx]);
                 swapIdx++;
             } else if (action == uint8(ActionType.SUBSCRIBE)) {
-                _action_subscribe(subscribeList[subscribeIdx]);
+                _action_subscribe(account, subscribeList[subscribeIdx]);
                 subscribeIdx++;
             }
         }
@@ -110,12 +114,12 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
     }
 
     function _action_swap(ActionSwap calldata act) internal {
-        bool ok = ITokenSwap(act.swapToken).swapTokens(act.swapPairId, _msgSender(), act.swapAmount);
+        bool ok = ITokenSwap(act.swapToken).swapTokens(act.swapPairId, act.fromAccount, act.swapAmount);
         require(ok == true, "SWAP_FAILED");
     }
 
-    function _action_subscribe(ActionSubscribe calldata act) internal {
-        _beginSubscription(act.subscrId, _msgSender(), act.subscrTo, act.pausable, act.subscrSpec);
+    function _action_subscribe(address subscriber, ActionSubscribe calldata act) internal {
+        _beginSubscription(act.subscrId, subscriber, act.subscrTo, act.pausable, act.subscrSpec);
         if (act.fund) {
             SubscriptionEvent memory fund;
             fund.subscrId = act.subscrId;
@@ -128,18 +132,24 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
     }
 
     function beginSubscription(uint128 subscrId, address fromAccount, address toAccount, bool pausable, SubscriptionSpec calldata spec) external nonReentrant returns (bool) {
-        address sender = _msgSender();
-        DataERC20 storage s = DataERC20Storage.diamondStorage();
-        if (s._subscriptionAdmin[sender]) {
-            require(hasRole(SUBSCRIPTION_ADMIN_ROLE, sender), "ROLE_ACCESS_DENIED");
-        } else {
-            require(fromAccount == sender, "ACCESS_DENIED");
-        }
         return _beginSubscription(subscrId, fromAccount, toAccount, pausable, spec);
     }
 
     function _beginSubscription(uint128 subscrId, address fromAccount, address toAccount, bool pausable, SubscriptionSpec calldata spec) internal returns (bool) {
+        address sender = _msgSender();
         DataERC20 storage s = DataERC20Storage.diamondStorage();
+        if (s._subscriptionAdmin[sender]) {
+            require(hasRole(SUBSCRIPTION_ADMIN_ROLE, sender), "ROLE_ACCESS_DENIED");
+            bool isAllowed = false;
+            if (s._subscriptionDelegate[sender][address(1)]) {
+                isAllowed = true;
+            } else if (s._subscriptionDelegate[sender][toAccount]) {
+                isAllowed = true;
+            }
+            require(isAllowed, "ADMIN_ACCESS_DENIED");
+        } else {
+            require(fromAccount == sender, "ACCESS_DENIED");
+        }
         require(s._balances[fromAccount] >= 0, "ERC20_BALANCE_REQUIRED");
         require(s._subscriptions[subscrId].mode == 0, "DUPLICATE_SUBSCRIPTION");
         SubscriptionData storage sb = s._subscriptions[subscrId];

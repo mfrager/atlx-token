@@ -69,8 +69,13 @@ contract TokenSwap is Context, ReentrancyGuard, AccessControlEnumerable {
         DataTokenSwap storage s = DataTokenSwapStorage.diamondStorage();
         require(s.tokenActive[forToken] == true, "INVALID_TO_TOKEN");
         require(s.tokenBalances[forToken] >= withdrawAmount, "NOT_ENOUGH_TOKENS_TO_WITHDRAW");
-        bool ok = IERC20(forToken).transfer(toAccount, withdrawAmount);
-        require(ok == true, "ERC20_TRANSER_FAILED");
+        if (forToken == address(1)) {
+            (bool sent, bytes memory data) = toAccount.call{value: withdrawAmount}("");
+            require(sent, "ETHEREUM_WITHDRAWAL_FAILED");
+        } else {
+            bool ok = IERC20(forToken).transfer(toAccount, withdrawAmount);
+            require(ok == true, "ERC20_TRANSER_FAILED");
+        }
         s.tokenBalances[forToken] = s.tokenBalances[forToken] - withdrawAmount;
         return (true);
     }
