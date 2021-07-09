@@ -8,10 +8,10 @@ struct RoleData {
     bytes32 adminRole;
 }
 
-using EnumerableSet for EnumerableSet.AddressSet;
+// using EnumerableSet for EnumerableSet.AddressSet;
 
 struct DataAccessControl {
-    address => _owner;
+    // address _owner; // for Ownable
     mapping(bytes32 => RoleData) _roles;
     mapping(bytes32 => EnumerableSet.AddressSet) _roleMembers;
 }

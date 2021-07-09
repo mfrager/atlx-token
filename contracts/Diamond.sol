@@ -17,6 +17,8 @@ import "../interfaces/IERC165.sol";
 
 contract Diamond {
 
+    bytes16 private constant _HEX_SYMBOLS = "0123456789abcdef";
+
     // more arguments are added to this struct
     // this avoids stack too deep errors
     struct DiamondArgs {
@@ -38,6 +40,21 @@ contract Diamond {
         //ds.supportedInterfaces[type(IERC173).interfaceId] = true;
     }
 
+    /**
+     * @dev Converts a `uint32` to its ASCII `string` hexadecimal representation with fixed length.
+     */
+    function _toHexDebug(uint32 value, uint256 length) internal pure returns (string memory) {
+        bytes memory buffer = new bytes(2 * length + 2);
+        buffer[0] = "0";
+        buffer[1] = "x";
+        for (uint256 i = 2 * length + 1; i > 1; --i) {
+            buffer[i] = _HEX_SYMBOLS[value & 0xf];
+            value >>= 4;
+        }
+        require(value == 0, "Strings: hex length insufficient");
+        return string(buffer);
+    }
+
     // Find facet for function that is called and execute the
     // function if a facet is found and return any value.
     fallback() external payable {
@@ -47,7 +64,11 @@ contract Diamond {
             ds.slot := position
         }
         address facet = ds.selectorToFacetAndPosition[msg.sig].facetAddress;
-        require(facet != address(0), "Diamond: Function does not exist");
+        if (facet == address(0)) {
+            string memory err = string(abi.encodePacked("NO_DIAMOND_FUNCTION:", _toHexDebug(uint32(msg.sig), 4)));
+            revert(err);
+        }
+        // require(facet != address(0), "Diamond: Function does not exist");
         assembly {
             calldatacopy(0, 0, calldatasize())
             let result := delegatecall(gas(), facet, 0, calldatasize(), 0, 0)

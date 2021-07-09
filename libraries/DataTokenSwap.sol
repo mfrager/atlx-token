@@ -4,15 +4,16 @@ pragma solidity ^0.8.0;
 struct SwapPair {
     address fromToken;
     address toToken;
-    uint fromRate;
-    uint toRate;
+    uint256 fromRate;
+    uint256 toRate;
 }
 
 struct DataTokenSwap {
     mapping(address => bool) tokenActive;
     mapping(address => uint256) tokenBalances;
     mapping(bytes32 => address) tokenLookup;
-    mapping(uint => SwapPair) swapPairs;
+    mapping(uint32 => SwapPair) swapPairs;
+    bool setupDone;
 }
 
 library DataTokenSwapStorage {

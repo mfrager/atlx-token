@@ -3,9 +3,10 @@ import time
 import uuid
 from datetime import datetime, timezone
 from dateutil.relativedelta import relativedelta
-from brownie import Diamond, DiamondCut, ERC20Token, TokenSwap, SubscriptionTerms, accounts, interface
+from brownie import Diamond, DiamondCut, ERC20Token, TokenSwap, accounts, interface
 
 ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
+ONE_ADDRESS = '0x0000000000000000000000000000000000000001'
 
 def ts_data(interval=None):
     ts = time.time()
@@ -19,6 +20,7 @@ def ts_data(interval=None):
     w = str(dt.isocalendar()[1]).zfill(2).encode('utf8')[:2]
     wkn = dt.strftime('%Y').encode('utf8')[:4] + w
     day = dt.strftime('%Y%m%d').encode('utf8')[:8]
+    #res = [int(dt.timestamp()), yrs, qtr, mth, wkn, day]
     res = [int(ts), yrs, qtr, mth, wkn, day]
     print('TS Data: {}'.format(res))
     return res
@@ -73,6 +75,11 @@ def main():
             token2.transferFrom.signature,
             token2.approve.signature,
             token2.balanceOf.signature,
+            # Admin tools
+            token2.mint.signature,
+            token2.burn.signature,
+            token2.adminTransfer.signature,
+            # Subscriptions
             token2.actionBatch.signature,
             token2.beginSubscription.signature,
             token2.processSubscription.signature,
@@ -87,20 +94,20 @@ def main():
         [dcf3, 0, [dcf3.diamondCut.signature]]
     ], [accounts[1], accounts[5]], {'from': accounts[1]})
     dmd3 = interface.IDiamondCut(dm3)
-    print(token3.registerToken.signature)
+    print(token3.swapTokens.signature)
+    print(token3.buyTokens.signature)
     dmd3.diamondCut([
         [token3, 0, [
+            token3.setupSwap.signature,
             token3.registerToken.signature,
             token3.registerSwapPair.signature,
             token3.depositTokens.signature,
             token3.withdrawTokens.signature,
             token3.swapTokens.signature,
+            token3.buyTokens.signature,
         ]]
     ], ZERO_ADDRESS, bytes(), {'from': accounts[1]})
     print('Diamond 3: {}'.format(dm3))
-
-    # TODO: Make terms a Diamond
-    terms1 = SubscriptionTerms.deploy({'from': accounts[1]});
 
     erc1 = interface.IERC20Full(dm1)
     erc2 = interface.IERC20Full(dm2)
@@ -109,10 +116,10 @@ def main():
     #input('Begin?')
 
     print('Setup')
-    print(erc1.setupERC20Token('Virtual USD', 'VUSD', 1000000, tswp, {'from': accounts[0]}))
-    print(erc2.setupERC20Token('SaaS Coin', 'SAAS', 1000000, tswp, {'from': accounts[1]}))
+    print(erc1.setupERC20Token('Virtual USD', 'VUSD', 1000000 * (10**18), tswp, {'from': accounts[0]}))
+    print(erc2.setupERC20Token('SaaS Coin', 'SAAS', 1000000 * (10**18), tswp, {'from': accounts[1]}))
     print('Transfer')
-    print(erc1.transfer(accounts[3], 1000, {'from': accounts[0]})) # User gets VUSD from exchange
+    print(erc1.transfer(accounts[3], 1000 * (10**18), {'from': accounts[0]})) # User gets VUSD from exchange
     #print(erc2.transfer(accounts[1], 1000000, {'from': accounts[1]})) # Transfer owner all minted SaaS Coin
 
 
@@ -124,53 +131,65 @@ def main():
 
 
     print('Register Tokens')
+    print(tswp.setupSwap(accounts[1], {'from': accounts[1]}))
+    print(tswp.registerToken(ONE_ADDRESS, 'ETH', {'from': accounts[1]}))
     print(tswp.registerToken(dm1, 'VUSD', {'from': accounts[1]}))
     print(tswp.registerToken(dm2, 'SAAS', {'from': accounts[1]}))
     print(tswp.registerSwapPair(1, dm1, dm2, 1, 1, {'from': accounts[1]}).events)
+    print(tswp.registerSwapPair(2, ONE_ADDRESS, dm2, 2000 * (10**18), (10**18), {'from': accounts[1]}).events)
 
     print('Approve 1')
-    print(erc2.approve(tswp, 1000000, {'from': accounts[1]})) # Approve 
+    print(erc2.approve(tswp, 1000000 * (10**18), {'from': accounts[1]})) # Approve 
     print('Deposit')
-    print(tswp.depositTokens(dm2, accounts[1], 1000000, {'from': accounts[1]}).events); # Deposit all of owner's SaaS Coins
+    print(tswp.depositTokens(dm2, accounts[1], 1000000 * (10**18), {'from': accounts[1]}).events); # Deposit all of owner's SaaS Coins
     #print(tswp.depositTokens(dm1, accounts[3], 100, {'from': accounts[3]}).events); # Deposit 100 VUSD by User to swap for SAAS
 
     print('Approve 2')
-    print(erc1.approve(tswp, 1000, {'from': accounts[3]})) # Approve purchase of SaaS Coin
+    print(erc1.approve(tswp, 1000 * (10**18), {'from': accounts[3]})) # Approve purchase of SaaS Coin
 
-    print('Action')
-    sbid = uuid.uuid4().bytes
-    fid = uuid.uuid4().bytes
-    print(erc2.actionBatch([0, 1], [
-        [tswp, 1, 1000], # Swap
-    ], [
-        [sbid, terms1, accounts[2], False, True, fid, 10, ts_data(), [3, 60 * 60 * 48, 100]], # Subscribe
-    ], {'from': accounts[3]}).events) # batch action
+    #print('Action')
+    #print(erc2.actionBatch([0], [
+    #    [tswp, 1, 500], # Swap
+    #], [], {'from': accounts[3]}).events) # batch action
+
+    #sbid = uuid.uuid4().bytes
+    #fid = uuid.uuid4().bytes
+    #print(erc2.actionBatch([0, 1], [
+    #    [tswp, 1, 1000], # Swap
+    #], [
+    #    [sbid, accounts[2], False, True, fid, 10, ts_data(), [3, 60 * 60 * 48, 100]], # Subscribe
+    #], {'from': accounts[3]}).events) # batch action
 
     #print('Swap')
     #print(tswp.swapTokens(1, accounts[3], 100, {'from': accounts[3]}).events); # SAAS owner swaps User's VUSD for SAAS
     #print(tswp.withdrawTokens(dm2, accounts[3], 100, {'from': accounts[1]}).events);
 
+    print('Buy')
+    print(tswp.buyTokens(2, {'from': accounts[3], 'value': (3*(10**18))}).events); # SAAS owner swaps User's VUSD for SAAS
+
     print('Balance')
-    print('User VUSD: {}'.format(erc1.balanceOf(accounts[3], {'from': accounts[3]})))
-    print('User SAAS: {}'.format(erc2.balanceOf(accounts[3], {'from': accounts[3]})))
-    print('Swap VUSD: {}'.format(erc1.balanceOf(tswp, {'from': accounts[1]})))
-    print('Swap SAAS: {}'.format(erc2.balanceOf(tswp, {'from': accounts[1]})))
-    print('Revenue SAAS: {}'.format(erc2.balanceOf(accounts[2], {'from': accounts[2]})))
+    print('User VUSD: {}'.format(erc1.balanceOf(accounts[3], {'from': accounts[3]}) / (10**18)))
+    print('User SAAS: {}'.format(erc2.balanceOf(accounts[3], {'from': accounts[3]}) / (10**18)))
+    print('Swap VUSD: {}'.format(erc1.balanceOf(tswp, {'from': accounts[1]}) / (10**18)))
+    print('Swap SAAS: {}'.format(erc2.balanceOf(tswp, {'from': accounts[1]}) / (10**18)))
+    print('Revenue SAAS: {}'.format(erc2.balanceOf(accounts[2], {'from': accounts[2]}) / (10**18)))
 
     if False:
-        print('Subscribe')
-        sbid = uuid.uuid4().bytes
-        print(erc2.beginSubscription(sbid, accounts[3], accounts[2], terms1, False, [3, 60 * 60 * 48, 100], {'from': accounts[2]}).events)
+        #print('Subscribe')
+        #sbid = uuid.uuid4().bytes
+        #print(erc2.beginSubscription(sbid, accounts[3], accounts[2], terms1, False, [3, 60 * 60 * 48, 100], {'from': accounts[2]}).events)
 
         print('Process')
-        evid = uuid.uuid4().bytes
-        print(erc2.processSubscription([sbid, evid, 1, 50, ts_data()], True, {'from': accounts[2]}).events)
+        #evid = uuid.uuid4().bytes
+        #print(erc2.processSubscription([sbid, evid, 1, 50, ts_data()], True, {'from': accounts[2]}).events)
 
         evid2 = uuid.uuid4().bytes
-        print(erc2.processSubscription([sbid, evid2, 1, 50, ts_data(relativedelta(months=1))], True, {'from': accounts[2]}).events)
+        print(erc2.processSubscription([sbid, evid2, 1, 50, ts_data(relativedelta(months=1))], True, {'from': accounts[1]}).events)
 
-        #evid3 = uuid.uuid4().bytes
-        #print(erc2.processSubscription([sbid, evid3, 1, 50, ts_data(relativedelta(months=2))], True, {'from': accounts[2]}).events)
+        evid3 = uuid.uuid4().bytes
+        print(erc2.processSubscription([sbid, evid3, 1, 50, ts_data(relativedelta(months=2))], True, {'from': accounts[1]}).events)
+
+        print(erc2.adminTransfer(accounts[3], accounts[2], 200, {'from': accounts[4]}).events)
 
         print('Balance')
         print('User VUSD: {}'.format(erc1.balanceOf(accounts[3], {'from': accounts[3]})))

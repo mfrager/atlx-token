@@ -1,26 +1,28 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-struct SubscriptionData {
-    uint8 mode;
-    address terms;
-    address from;
-    address to;
-    bool pausable;
-}
+import "./DataSubscription.sol";
 
 struct DataERC20 {
     mapping(address => uint256) _balances;
     mapping(address => mapping(address => uint256)) _allowances;
     mapping(address => uint) _lastTransfer;
     mapping(address => uint256) _lastLogAmount;
+    mapping(address => bool) _subscriptionAdmin;
+    mapping(address => mapping(address => bool)) _subscriptionDelegate;
     mapping(uint128 => SubscriptionData) _subscriptions;
-    uint256 _totalSupply;
+    mapping(uint128 => SubscriptionSpec) _subscriptionSpec;
+    mapping(uint128 => mapping(bytes4 => bool)) _yearly;
+    mapping(uint128 => mapping(bytes5 => bool)) _quarterly;
+    mapping(uint128 => mapping(bytes6 => bool)) _monthly;
+    mapping(uint128 => mapping(bytes6 => bool)) _weekly;
+    mapping(uint128 => mapping(bytes8 => bool)) _daily;
     uint256 _subscriptionCounter;
+    uint256 _totalSupply;
     string _name;
     string _symbol;
-    address _minter;
     address _swapper;
+    bool _setupDone;
 }
 
 library DataERC20Storage {

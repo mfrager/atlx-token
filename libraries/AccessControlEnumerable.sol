@@ -25,9 +25,9 @@ abstract contract AccessControlEnumerable is IAccessControlEnumerable, AccessCon
     /**
      * @dev See {IERC165-supportsInterface}.
      */
-    function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
+    /*function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
         return interfaceId == type(IAccessControlEnumerable).interfaceId || super.supportsInterface(interfaceId);
-    }
+    }*/
 
     /**
      * @dev Returns one of the accounts that have `role`. `index` must be a
@@ -42,7 +42,7 @@ abstract contract AccessControlEnumerable is IAccessControlEnumerable, AccessCon
      * for more information.
      */
     function getRoleMember(bytes32 role, uint256 index) public view override returns (address) {
-        DataAccessControl storage ac = DataDataAccessControl.diamondStorage();
+        DataAccessControl storage ac = DataAccessControlStorage.diamondStorage();
         return ac._roleMembers[role].at(index);
     }
 
@@ -51,7 +51,7 @@ abstract contract AccessControlEnumerable is IAccessControlEnumerable, AccessCon
      * together with {getRoleMember} to enumerate all bearers of a role.
      */
     function getRoleMemberCount(bytes32 role) public view override returns (uint256) {
-        DataAccessControl storage ac = DataDataAccessControl.diamondStorage();
+        DataAccessControl storage ac = DataAccessControlStorage.diamondStorage();
         return ac._roleMembers[role].length();
     }
 
@@ -60,7 +60,7 @@ abstract contract AccessControlEnumerable is IAccessControlEnumerable, AccessCon
      */
     function grantRole(bytes32 role, address account) public virtual override {
         super.grantRole(role, account);
-        DataAccessControl storage ac = DataDataAccessControl.diamondStorage();
+        DataAccessControl storage ac = DataAccessControlStorage.diamondStorage();
         ac._roleMembers[role].add(account);
     }
 
@@ -69,7 +69,7 @@ abstract contract AccessControlEnumerable is IAccessControlEnumerable, AccessCon
      */
     function revokeRole(bytes32 role, address account) public virtual override {
         super.revokeRole(role, account);
-        DataAccessControl storage ac = DataDataAccessControl.diamondStorage();
+        DataAccessControl storage ac = DataAccessControlStorage.diamondStorage();
         ac._roleMembers[role].remove(account);
     }
 
@@ -78,7 +78,7 @@ abstract contract AccessControlEnumerable is IAccessControlEnumerable, AccessCon
      */
     function renounceRole(bytes32 role, address account) public virtual override {
         super.renounceRole(role, account);
-        DataAccessControl storage ac = DataDataAccessControl.diamondStorage();
+        DataAccessControl storage ac = DataAccessControlStorage.diamondStorage();
         ac._roleMembers[role].remove(account);
     }
 
@@ -87,7 +87,7 @@ abstract contract AccessControlEnumerable is IAccessControlEnumerable, AccessCon
      */
     function _setupRole(bytes32 role, address account) internal virtual override {
         super._setupRole(role, account);
-        DataAccessControl storage ac = DataDataAccessControl.diamondStorage();
+        DataAccessControl storage ac = DataAccessControlStorage.diamondStorage();
         ac._roleMembers[role].add(account);
     }
 }

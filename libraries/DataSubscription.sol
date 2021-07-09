@@ -18,7 +18,13 @@ struct SubscriptionEvent {
     uint8 eventType;
     uint256 amount;
     TimestampData thisBill;
-    // TimestampData nextBill;
+}
+
+struct SubscriptionData {
+    uint8 mode;
+    address from;
+    address to;
+    bool pausable;
 }
 
 struct SubscriptionSpec {
@@ -29,13 +35,12 @@ struct SubscriptionSpec {
 
 struct ActionSwap {
     address swapToken;
-    uint swapPairId;
+    uint32 swapPairId;
     uint256 swapAmount;
 }
 
 struct ActionSubscribe {
     uint128 subscrId;
-    address subscrTerms;
     address subscrTo;
     bool pausable;
     bool fund;

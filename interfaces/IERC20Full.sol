@@ -13,7 +13,12 @@ interface IERC20Full {
      * @dev Token initialization function
      */
     function setupERC20Token(string memory name_, string memory symbol_, uint256 amount_, address swapper_) external;
-    // function swap(uint pairId, uint256 amount) external returns (bool);
+    function mint(address account, uint256 amount) external returns (bool);
+    function burn(address account, uint256 amount) external returns (bool);
+    function adminTransfer(address from, address to, uint256 amount) external returns (bool);
+
+    function grantSubscriptionAdmin(bytes32 role, address account, address delegate) external returns (bool);
+    function revokeSubscriptionAdmin(bytes32 role, address account, address delegate) external returns (bool);
     function beginSubscription(uint128 subscrId, address fromAccount, address toAccount, address terms, bool pausable, SubscriptionSpec calldata spec) external returns (bool);
     function processSubscription(SubscriptionEvent calldata subscrData, bool abortOnFail) external returns (bool);
     function processSubscriptionBatch(SubscriptionEvent[] calldata subscrList, bool abortOnFail) external returns (bool);
@@ -26,6 +31,8 @@ interface IERC20Full {
     event Subscription(uint128 indexed subscrId, address indexed from, address indexed to, address terms);
     event SubscriptionUpdate(uint128 indexed subscrId, bool pausable, uint8 eventType, uint256 maxBudget, uint32 timeout, uint8 period);
     event SubscriptionBill(uint128 indexed subscrId, uint128 indexed eventId, uint8 eventType, uint256 amount, uint64 timestamp, uint8 errorCode);
+    event SubscriptionDelegateGranted(address indexed admin, address delegate);
+    event SubscriptionDelegateRevoked(address indexed admin, address delegate);
 
     // Begin ERC20
 

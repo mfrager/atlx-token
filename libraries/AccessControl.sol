@@ -4,7 +4,6 @@ pragma solidity ^0.8.0;
 
 import "../utils/Context.sol";
 import "../utils/Strings.sol";
-import "../utils/introspection/ERC165.sol";
 import "./DataAccessControl.sol";
 
 /**
@@ -60,7 +59,7 @@ interface IAccessControl {
  * grant and revoke this role. Extra precautions should be taken to secure
  * accounts that have been granted it.
  */
-abstract contract AccessControl is Context, IAccessControl, ERC165 {
+abstract contract AccessControl is Context, IAccessControl {
 
     /* struct RoleData {
         mapping(address => bool) members;
@@ -124,7 +123,7 @@ abstract contract AccessControl is Context, IAccessControl, ERC165 {
      * @dev Returns `true` if `account` has been granted `role`.
      */
     function hasRole(bytes32 role, address account) public view override returns (bool) {
-        DataAccessControl storage ac = DataDataAccessControl.diamondStorage();
+        DataAccessControl storage ac = DataAccessControlStorage.diamondStorage();
         return ac._roles[role].members[account];
     }
 
@@ -140,9 +139,9 @@ abstract contract AccessControl is Context, IAccessControl, ERC165 {
             revert(
                 string(
                     abi.encodePacked(
-                        "AccessControl: account ",
+                        "ROLE_ACCESS_DENIED:",
                         Strings.toHexString(uint160(account), 20),
-                        " is missing role ",
+                        ":",
                         Strings.toHexString(uint256(role), 32)
                     )
                 )
@@ -157,7 +156,7 @@ abstract contract AccessControl is Context, IAccessControl, ERC165 {
      * To change a role's admin, use {_setRoleAdmin}.
      */
     function getRoleAdmin(bytes32 role) public view override returns (bytes32) {
-        DataAccessControl storage ac = DataDataAccessControl.diamondStorage();
+        DataAccessControl storage ac = DataAccessControlStorage.diamondStorage();
         return ac._roles[role].adminRole;
     }
 
@@ -235,13 +234,13 @@ abstract contract AccessControl is Context, IAccessControl, ERC165 {
      */
     function _setRoleAdmin(bytes32 role, bytes32 adminRole) internal virtual {
         emit RoleAdminChanged(role, getRoleAdmin(role), adminRole);
-        DataAccessControl storage ac = DataDataAccessControl.diamondStorage();
+        DataAccessControl storage ac = DataAccessControlStorage.diamondStorage();
         ac._roles[role].adminRole = adminRole;
     }
 
     function _grantRole(bytes32 role, address account) private {
         if (!hasRole(role, account)) {
-            DataAccessControl storage ac = DataDataAccessControl.diamondStorage();
+            DataAccessControl storage ac = DataAccessControlStorage.diamondStorage();
             ac._roles[role].members[account] = true;
             emit RoleGranted(role, account, _msgSender());
         }
@@ -249,7 +248,7 @@ abstract contract AccessControl is Context, IAccessControl, ERC165 {
 
     function _revokeRole(bytes32 role, address account) private {
         if (hasRole(role, account)) {
-            DataAccessControl storage ac = DataDataAccessControl.diamondStorage();
+            DataAccessControl storage ac = DataAccessControlStorage.diamondStorage();
             ac._roles[role].members[account] = false;
             emit RoleRevoked(role, account, _msgSender());
         }

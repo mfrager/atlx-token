@@ -3,11 +3,11 @@ pragma solidity ^0.8.0;
 
 import "../../libraries/DataERC20.sol";
 import "../../libraries/DataSubscription.sol";
+import "../../libraries/AccessControlEnumerable.sol";
 import "../../libraries/ReentrancyGuard.sol";
 import "../../interfaces/IERC20.sol";
 import "../../interfaces/IERC20Metadata.sol";
 import "../../interfaces/ITokenSwap.sol";
-import "../../interfaces/ISubscriptionTerms.sol";
 import "../../utils/Context.sol";
 
 /**
@@ -34,39 +34,65 @@ import "../../utils/Context.sol";
  * functions have been added to mitigate the well-known issues around setting
  * allowances. See {IERC20-approve}.
  */
-contract ERC20Token is Context, ReentrancyGuard, IERC20, IERC20Metadata {
+contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20, IERC20Metadata {
 
     uint constant TRANSFER_LOG_WAIT_SECONDS = 24 * 60 * 60; // 1 per day
+    bytes32 public constant ERC20_TOKEN_ADMIN_ROLE = keccak256("ERC20_TOKEN_ADMIN_ROLE");
+    bytes32 public constant SUBSCRIPTION_ADMIN_ROLE = keccak256("SUBSCRIPTION_ADMIN_ROLE");
 
     /**
      * @dev Emitted when a token has moved after a certain amount of time.
      */
     event BalanceLog(address indexed owner, uint256 balanceNew, uint256 balancePrev, uint256 balancePrevLog, uint ts);
-    event Subscription(uint128 indexed subscrId, address indexed from, address indexed to, address terms);
+    event Subscription(uint128 indexed subscrId, address indexed from, address indexed to);
     event SubscriptionUpdate(uint128 indexed subscrId, bool pausable, uint8 eventType, uint256 maxBudget, uint32 timeout, uint8 period);
     event SubscriptionBill(uint128 indexed subscrId, uint128 indexed eventId, uint8 eventType, uint256 amount, uint64 timestamp, uint8 errorCode);
+    event SubscriptionDelegateGranted(address indexed admin, address delegate);
+    event SubscriptionDelegateRevoked(address indexed admin, address delegate);
 
     function setupERC20Token(string memory name_, string memory symbol_, uint256 amount_, address swapper_) external nonReentrant {
         DataERC20 storage s = DataERC20Storage.diamondStorage();
+        require(!s._setupDone, "SETUP_ALREADY_DONE");
+        s._setupDone = true;
         s._name = name_;
         s._symbol = symbol_;
         s._swapper = swapper_;
-        s._minter = _msgSender();
+        address sender = _msgSender();
+        s._subscriptionAdmin[sender] = true;
+        s._subscriptionDelegate[sender][address(1)] = true;
+        emit SubscriptionDelegateGranted(sender, address(1));
+        _setupRole(DEFAULT_ADMIN_ROLE, sender);
+        _setRoleAdmin(ERC20_TOKEN_ADMIN_ROLE, DEFAULT_ADMIN_ROLE);
+        _setRoleAdmin(SUBSCRIPTION_ADMIN_ROLE, DEFAULT_ADMIN_ROLE);
+        _setupRole(ERC20_TOKEN_ADMIN_ROLE, sender);
+        _setupRole(SUBSCRIPTION_ADMIN_ROLE, sender);
         _mint(_msgSender(), amount_);
     }
 
-    // Withdraw tokens via swap
-    /* function swap(uint pairId, uint256 amount) external nonReentrant returns (bool) {
-        DataERC20 storage s = DataERC20Storage.diamondStorage();
+    function grantSubscriptionAdmin(bytes32 role, address account, address delegate) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) returns (bool) {
         address sender = _msgSender();
-        require(s._balances[sender] >= amount, "ERC20: transfer amount exceeds balance");
-        _approve(sender, s._swapper, amount);
-        bool ok = ITokenSwap(s._swapper).swapTokens(pairId, sender, amount);
-        require(ok == true, "SWAP_FAILED");
-        return (true);
-    } */
+        DataERC20 storage s = DataERC20Storage.diamondStorage();
+        s._subscriptionAdmin[sender] = true;
+        s._subscriptionDelegate[sender][delegate] = true;
+        emit SubscriptionDelegateGranted(sender, delegate);
+        _setupRole(SUBSCRIPTION_ADMIN_ROLE, sender);
+        return(true);
+    }
+
+    function revokeSubscriptionAdmin(bytes32 role, address account, address delegate) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) returns (bool) {
+        address sender = _msgSender();
+        DataERC20 storage s = DataERC20Storage.diamondStorage();
+        s._subscriptionAdmin[sender] = false;
+        s._subscriptionDelegate[sender][delegate] = false;
+        emit SubscriptionDelegateRevoked(sender, delegate);
+        revokeRole(SUBSCRIPTION_ADMIN_ROLE, sender);
+        return(true);
+    }
 
     function actionBatch(uint8[] calldata actionList, ActionSwap[] calldata swapList, ActionSubscribe[] calldata subscribeList) external nonReentrant returns (bool) {
+        address sender = _msgSender();
+        DataERC20 storage s = DataERC20Storage.diamondStorage();
+        require(!s._subscriptionAdmin[sender], "END_USERS_ONLY");
         uint8 swapIdx;
         uint8 subscribeIdx;
         uint8 action;
@@ -89,7 +115,7 @@ contract ERC20Token is Context, ReentrancyGuard, IERC20, IERC20Metadata {
     }
 
     function _action_subscribe(ActionSubscribe calldata act) internal {
-        _beginSubscription(act.subscrId, _msgSender(), act.subscrTo, act.subscrTerms, act.pausable, act.subscrSpec);
+        _beginSubscription(act.subscrId, _msgSender(), act.subscrTo, act.pausable, act.subscrSpec);
         if (act.fund) {
             SubscriptionEvent memory fund;
             fund.subscrId = act.subscrId;
@@ -101,33 +127,46 @@ contract ERC20Token is Context, ReentrancyGuard, IERC20, IERC20Metadata {
         }
     }
 
-    function beginSubscription(uint128 subscrId, address fromAccount, address toAccount, address terms, bool pausable, SubscriptionSpec calldata spec) external nonReentrant returns (bool) {
-        return _beginSubscription(subscrId, fromAccount, toAccount, terms, pausable, spec);
+    function beginSubscription(uint128 subscrId, address fromAccount, address toAccount, bool pausable, SubscriptionSpec calldata spec) external nonReentrant returns (bool) {
+        address sender = _msgSender();
+        DataERC20 storage s = DataERC20Storage.diamondStorage();
+        if (s._subscriptionAdmin[sender]) {
+            require(hasRole(SUBSCRIPTION_ADMIN_ROLE, sender), "ROLE_ACCESS_DENIED");
+        } else {
+            require(fromAccount == sender, "ACCESS_DENIED");
+        }
+        return _beginSubscription(subscrId, fromAccount, toAccount, pausable, spec);
     }
 
-    function _beginSubscription(uint128 subscrId, address fromAccount, address toAccount, address terms, bool pausable, SubscriptionSpec calldata spec) internal returns (bool) {
+    function _beginSubscription(uint128 subscrId, address fromAccount, address toAccount, bool pausable, SubscriptionSpec calldata spec) internal returns (bool) {
         DataERC20 storage s = DataERC20Storage.diamondStorage();
-        // TODO: verify fromAccount
         require(s._balances[fromAccount] >= 0, "ERC20_BALANCE_REQUIRED");
         require(s._subscriptions[subscrId].mode == 0, "DUPLICATE_SUBSCRIPTION");
-        bool ok = ISubscriptionTerms(terms).updateSubscription(subscrId, spec);
-        require(ok, "UPDATE_SUBSCRIPTION_FAILED");
         SubscriptionData storage sb = s._subscriptions[subscrId];
         sb.mode = uint8(SubscriptionMode.ACTIVE);
-        sb.terms = terms;
         sb.from = fromAccount;
         sb.to = toAccount;
         sb.pausable = pausable;
-        emit Subscription(subscrId, fromAccount, toAccount, terms);
+        SubscriptionSpec storage sp = s._subscriptionSpec[subscrId];
+        sp.period = spec.period;
+        sp.timeout = spec.timeout;
+        sp.maxBudget = spec.maxBudget;
+        emit Subscription(subscrId, fromAccount, toAccount);
         emit SubscriptionUpdate(subscrId, pausable, uint8(EventType.CREATE), spec.maxBudget, spec.timeout, spec.period);
         return (true);
     }
 
-    function processSubscription(SubscriptionEvent calldata subscrData, bool abortOnFail) external nonReentrant returns (bool) {
+    function processSubscription(SubscriptionEvent calldata subscrData, bool abortOnFail) external nonReentrant onlyRole(SUBSCRIPTION_ADMIN_ROLE) returns (bool) {
+        address sender = _msgSender();
+        DataERC20 storage s = DataERC20Storage.diamondStorage();
+        require(s._subscriptionAdmin[sender], "ADMIN_ACCESS_DENIED");
         return _processSubscription(subscrData, abortOnFail);
     }
 
-    function processSubscriptionBatch(SubscriptionEvent[] calldata subscrList, bool abortOnFail) external nonReentrant returns (bool) {
+    function processSubscriptionBatch(SubscriptionEvent[] calldata subscrList, bool abortOnFail) external nonReentrant onlyRole(SUBSCRIPTION_ADMIN_ROLE) returns (bool) {
+        address sender = _msgSender();
+        DataERC20 storage s = DataERC20Storage.diamondStorage();
+        require(s._subscriptionAdmin[sender], "ADMIN_ACCESS_DENIED");
         bool ok;
         for (uint256 subscrIndex; subscrIndex < subscrList.length; subscrIndex++) {
             ok = _processSubscription(subscrList[subscrIndex], false);
@@ -140,10 +179,19 @@ contract ERC20Token is Context, ReentrancyGuard, IERC20, IERC20Metadata {
     }
     
     function _processSubscription(SubscriptionEvent memory subscrData, bool abortOnFail) internal returns (bool) {
+        address sender = _msgSender();
         uint128 subscrId = subscrData.subscrId;
         DataERC20 storage s = DataERC20Storage.diamondStorage();
         SubscriptionData storage sd = s._subscriptions[subscrId];
-        // TODO: Validate operator
+        bool isAllowed = false;
+        if (sender == sd.from) {
+            isAllowed = true;
+        } else if (s._subscriptionDelegate[sender][address(1)]) {
+            isAllowed = true;
+        } else if (s._subscriptionDelegate[sender][sd.to]) {
+            isAllowed = true;
+        }
+        require(isAllowed, "ACCESS_DENIED");
         if (sd.mode == uint8(SubscriptionMode.NONE)) {
             require(abortOnFail == true, "INVALID_SUBSCRIPTION");
             return(false);
@@ -178,7 +226,7 @@ contract ERC20Token is Context, ReentrancyGuard, IERC20, IERC20Metadata {
             require(abortOnFail == true, "CANCELLED_SUBSCRIPTION");
             return(false);
         }
-        uint8 res = ISubscriptionTerms(sd.terms).processTerms(subscrData);
+        uint8 res = _processTerms(subscrData);
         if (res != uint8(EventResult.SUCCESS)) {
             if (abortOnFail) {
                 string memory errtxt;
@@ -200,6 +248,65 @@ contract ERC20Token is Context, ReentrancyGuard, IERC20, IERC20Metadata {
         // Ready to transfer
         _transfer(sd.from, sd.to, subscrData.amount);
         emit SubscriptionBill(subscrId, subscrData.eventId, subscrData.eventType, subscrData.amount, subscrData.thisBill.timestamp, res);
+        return(true);
+    }
+
+    function _processTerms(SubscriptionEvent memory subscrEvent) internal returns (uint8) {
+        DataERC20 storage s = DataERC20Storage.diamondStorage();        
+        SubscriptionSpec memory spec = s._subscriptionSpec[subscrEvent.subscrId];
+        require(spec.period != uint8(SubscriptionPeriod.INACTIVE), "INACTIVE_SUBSCRIPTION");
+        if (uint128(block.timestamp) - subscrEvent.thisBill.timestamp >= spec.timeout) {
+            return(uint8(EventResult.TIMEOUT));
+        }
+        if (spec.maxBudget > 0 && subscrEvent.amount > spec.maxBudget) {
+            return(uint8(EventResult.EXCEED_BUDGET));
+        }
+        if (spec.period == uint8(SubscriptionPeriod.YEARLY)) {
+            if (s._yearly[subscrEvent.subscrId][subscrEvent.thisBill.year]) {
+                return(uint8(EventResult.DUPLICATE));
+            }
+            s._yearly[subscrEvent.subscrId][subscrEvent.thisBill.year] = true;
+            return(uint8(EventResult.SUCCESS));
+        } else if (spec.period == uint8(SubscriptionPeriod.QUARTERLY)) {
+            if (s._quarterly[subscrEvent.subscrId][subscrEvent.thisBill.quarter]) {
+                return(uint8(EventResult.DUPLICATE));
+            }
+            s._quarterly[subscrEvent.subscrId][subscrEvent.thisBill.quarter] = true;
+            return(uint8(EventResult.SUCCESS));
+        } else if (spec.period == uint8(SubscriptionPeriod.MONTHLY)) {
+            if (s._monthly[subscrEvent.subscrId][subscrEvent.thisBill.month]) {
+                return(uint8(EventResult.DUPLICATE));
+            }
+            s._monthly[subscrEvent.subscrId][subscrEvent.thisBill.month] = true;
+            return(uint8(EventResult.SUCCESS));
+        } else if (spec.period == uint8(SubscriptionPeriod.WEEKLY)) {
+            if (s._weekly[subscrEvent.subscrId][subscrEvent.thisBill.week]) {
+                return(uint8(EventResult.DUPLICATE));
+            }
+            s._weekly[subscrEvent.subscrId][subscrEvent.thisBill.week] = true;
+            return(uint8(EventResult.SUCCESS));
+        } else if (spec.period == uint8(SubscriptionPeriod.DAILY)) {
+            if (s._daily[subscrEvent.subscrId][subscrEvent.thisBill.day]) {
+                return(uint8(EventResult.DUPLICATE));
+            }
+            s._daily[subscrEvent.subscrId][subscrEvent.thisBill.day] = true;
+            return(uint8(EventResult.SUCCESS));
+        }
+        return(uint8(EventResult.ABORT));
+    }
+
+    function mint(address account, uint256 amount) external nonReentrant onlyRole(ERC20_TOKEN_ADMIN_ROLE) returns (bool) {
+        _mint(account, amount);
+        return(true);
+    }
+
+    function burn(address account, uint256 amount) external nonReentrant onlyRole(ERC20_TOKEN_ADMIN_ROLE) returns (bool) {
+        _burn(account, amount);
+        return(true);
+    }
+
+    function adminTransfer(address fromAccount, address toAccount, uint256 amount) external nonReentrant onlyRole(ERC20_TOKEN_ADMIN_ROLE) returns (bool) {
+        _transfer(fromAccount, toAccount, amount);
         return(true);
     }
 
@@ -309,7 +416,6 @@ contract ERC20Token is Context, ReentrancyGuard, IERC20, IERC20Metadata {
         DataERC20 storage s = DataERC20Storage.diamondStorage();
         uint256 currentAllowance = s._allowances[sender][_msgSender()];
 
-        //require(currentAllowance >= amount, "ERC20: transfer amount exceeds allowance");
         if (currentAllowance < amount) {
             string memory err = string(abi.encodePacked("ERC20_TRANSER_EXCEEDS_ALLOWANCE:", _toString(_msgSender())));
             revert(err);
@@ -357,7 +463,7 @@ contract ERC20Token is Context, ReentrancyGuard, IERC20, IERC20Metadata {
     function decreaseAllowance(address spender, uint256 subtractedValue) public virtual returns (bool) {
         DataERC20 storage s = DataERC20Storage.diamondStorage();
         uint256 currentAllowance = s._allowances[_msgSender()][spender];
-        require(currentAllowance >= subtractedValue, "ERC20: decreased allowance below zero");
+        require(currentAllowance >= subtractedValue, "ERC20_DECREASED_ALLOWANCE_BELOW_ZERO");
         unchecked {
             _approve(_msgSender(), spender, currentAllowance - subtractedValue);
         }
@@ -384,8 +490,8 @@ contract ERC20Token is Context, ReentrancyGuard, IERC20, IERC20Metadata {
         address recipient,
         uint256 amount
     ) internal virtual {
-        require(sender != address(0), "ERC20: transfer from the zero address");
-        require(recipient != address(0), "ERC20: transfer to the zero address");
+        require(sender != address(0), "ERC20_TRANSFER_FROM_ZERO_ADDRESS");
+        require(recipient != address(0), "ERC20_TRANSFER_TO_ZERO_ADDRESS");
         //require(recipient != sender, "ERC20: transfer to same address as sender");
 
         if (recipient == sender) {
@@ -393,12 +499,10 @@ contract ERC20Token is Context, ReentrancyGuard, IERC20, IERC20Metadata {
             revert(err);
         }
 
-        _beforeTokenTransfer(sender, recipient, amount);
-
         DataERC20 storage s = DataERC20Storage.diamondStorage();
         uint256 senderBalance = s._balances[sender];
         uint256 recipBalance = s._balances[recipient];
-        require(senderBalance >= amount, "ERC20: transfer amount exceeds balance");
+        require(senderBalance >= amount, "ERC20_TRANSFER_AMOUNT_EXCEEDS_BALANCE");
         unchecked {
             s._balances[sender] = senderBalance - amount;
         }
@@ -439,10 +543,7 @@ contract ERC20Token is Context, ReentrancyGuard, IERC20, IERC20Metadata {
      * - `account` cannot be the zero address.
      */
     function _mint(address account, uint256 amount) internal virtual {
-        require(account != address(0), "ERC20: mint to the zero address");
-
-        _beforeTokenTransfer(address(0), account, amount);
-
+        require(account != address(0), "ERC20_MINT_TO_ZERO_ADDRESS");
         DataERC20 storage s = DataERC20Storage.diamondStorage();
         uint256 prev = s._balances[account];
         s._totalSupply += amount;
@@ -464,19 +565,15 @@ contract ERC20Token is Context, ReentrancyGuard, IERC20, IERC20Metadata {
      * - `account` must have at least `amount` tokens.
      */
     function _burn(address account, uint256 amount) internal virtual {
-        require(account != address(0), "ERC20: burn from the zero address");
-
-        _beforeTokenTransfer(account, address(0), amount);
-
+        require(account != address(0), "ERC20_BURN_FROM_ZERO_ADDRESS");
         DataERC20 storage s = DataERC20Storage.diamondStorage();
         uint256 accountBalance = s._balances[account];
-        require(accountBalance >= amount, "ERC20: burn amount exceeds balance");
+        require(accountBalance >= amount, "ERC20_BURN_AMOUNT_EXCEEDS_BALANCE");
         uint256 prev = s._balances[account];
         unchecked {
             s._balances[account] = accountBalance - amount;
         }
         s._totalSupply -= amount;
-
         emit Transfer(account, address(0), amount);
         emit BalanceLog(account, s._balances[account], prev, s._lastLogAmount[account], block.timestamp);
         s._lastLogAmount[account] = s._balances[account];
@@ -500,32 +597,10 @@ contract ERC20Token is Context, ReentrancyGuard, IERC20, IERC20Metadata {
         address spender,
         uint256 amount
     ) internal virtual {
-        require(owner != address(0), "ERC20: approve from the zero address");
-        require(spender != address(0), "ERC20: approve to the zero address");
-
+        require(owner != address(0), "ERC20_APPROVE_FROM_ZERO_ADDRESS");
+        require(spender != address(0), "ERC20_TO_FROM_ZERO_ADDRESS");
         DataERC20 storage s = DataERC20Storage.diamondStorage();
         s._allowances[owner][spender] = amount;
         emit Approval(owner, spender, amount);
-    }
-
-    /**
-     * @dev Hook that is called before any transfer of tokens. This includes
-     * minting and burning.
-     *
-     * Calling conditions:
-     *
-     * - when `from` and `to` are both non-zero, `amount` of ``from``'s tokens
-     * will be to transferred to `to`.
-     * - when `from` is zero, `amount` tokens will be minted for `to`.
-     * - when `to` is zero, `amount` of ``from``'s tokens will be burned.
-     * - `from` and `to` are never both zero.
-     *
-     * To learn more about hooks, head to xref:ROOT:extending-contracts.adoc#using-hooks[Using Hooks].
-     */
-    function _beforeTokenTransfer(
-        address from,
-        address to,
-        uint256 amount
-    ) internal virtual {
     }
 }
