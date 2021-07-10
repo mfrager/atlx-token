@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.7.6;
+pragma solidity ^0.8.0;
 pragma experimental ABIEncoderV2;
 
 /******************************************************************************\
@@ -10,6 +10,7 @@ pragma experimental ABIEncoderV2;
 /******************************************************************************/
 
 import "../libraries/LibDiamond.sol";
+import "../interfaces/IDiamondOwner.sol";
 import "../interfaces/IDiamondLoupe.sol";
 import "../interfaces/IDiamondCut.sol";
 import "../interfaces/IERC173.sol";
@@ -26,12 +27,25 @@ contract Diamond {
         address admin;
     }
 
-    constructor(IDiamondCut.FacetCut[] memory _diamondCut, DiamondArgs memory _args) payable {
-        LibDiamond.diamondCut(_diamondCut, address(0), new bytes(0));
+    // constructor(IDiamondCut.FacetCut[] memory _diamondCut, DiamondArgs memory _args) payable {
+    constructor(address _diamondCutFacet, DiamondArgs memory _args) payable {
         LibDiamond.setContractOwner(_args.owner);
         LibDiamond.setContractAdmin(_args.admin);
 
-        //LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
+        // Add the diamondCut external function from the diamondCutFacet
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
+        bytes4[] memory functionSelectors = new bytes4[](5);
+        functionSelectors[0] = IDiamondCut.diamondCut.selector;
+        functionSelectors[1] = IDiamondOwner.transferOwnership.selector;
+        functionSelectors[2] = IDiamondOwner.transferAdministrator.selector;
+        functionSelectors[3] = IDiamondOwner.owner.selector;
+        functionSelectors[4] = IDiamondOwner.admin.selector;
+        cut[0] = IDiamondCut.FacetCut({
+            facetAddress: _diamondCutFacet, 
+            action: IDiamondCut.FacetCutAction.Add, 
+            functionSelectors: functionSelectors
+        });
+        LibDiamond.diamondCut(cut, address(0), new bytes(0));
 
         // adding ERC165 data (done elsewhere)
         //ds.supportedInterfaces[type(IERC165).interfaceId] = true;

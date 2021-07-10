@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.7.6;
+pragma solidity ^0.8.0;
 pragma experimental ABIEncoderV2;
 
 /******************************************************************************\
@@ -8,6 +8,8 @@ pragma experimental ABIEncoderV2;
 /******************************************************************************/
 
 interface IDiamondOwner {
-    function transferOwnership(address _newOwner) external;
     function owner() external view returns (address owner_);
+    function admin() external view returns (address admin_);
+    function transferOwnership(address _newOwner) external;
+    function transferAdministrator(address _newAdmin) external;
 }
