@@ -79,6 +79,9 @@ def main():
             token2.mint.signature,
             token2.burn.signature,
             token2.adminTransfer.signature,
+            token2.enableMerchant.signature,
+            token2.disableMerchant.signature,
+            token2.isValidMerchant.signature,
             # Subscriptions
             token2.actionBatch.signature,
             token2.beginSubscription.signature,
@@ -122,27 +125,32 @@ def main():
     print(erc1.transfer(accounts[3], 1000 * (10**18), {'from': accounts[0]})) # User gets VUSD from exchange
     #print(erc2.transfer(accounts[1], 1000000, {'from': accounts[1]})) # Transfer owner all minted SaaS Coin
 
-
     print('Balance')
-    print('User VUSD: {}'.format(erc1.balanceOf(accounts[3], {'from': accounts[3]})))
-    print('User SAAS: {}'.format(erc2.balanceOf(accounts[3], {'from': accounts[3]})))
-    print('Owner SAAS: {}'.format(erc2.balanceOf(accounts[1], {'from': accounts[1]})))
-    print('Swap SAAS: {}'.format(erc2.balanceOf(tswp, {'from': accounts[1]})))
-
+    print('User sDAI: {}'.format(erc1.balanceOf(accounts[3], {'from': accounts[3]}) / (10**18)))
+    print('User vUSD: {}'.format(erc2.balanceOf(accounts[3], {'from': accounts[3]}) / (10**18)))
+    print('Swap sDAI: {}'.format(erc1.balanceOf(tswp, {'from': accounts[1]}) / (10**18)))
+    print('Swap vUSD: {}'.format(erc2.balanceOf(tswp, {'from': accounts[1]}) / (10**18)))
+    print('Revenue sDAI: {}'.format(erc1.balanceOf(accounts[2], {'from': accounts[2]}) / (10**18)))
+    print('Revenue vUSD: {}'.format(erc2.balanceOf(accounts[2], {'from': accounts[2]}) / (10**18)))
 
     print('Register Tokens')
     print(tswp.setupSwap(accounts[1], {'from': accounts[1]}))
     print(tswp.registerToken(ONE_ADDRESS, 'ETH', {'from': accounts[1]}))
-    print(tswp.registerToken(dm1, 'VUSD', {'from': accounts[1]}))
-    print(tswp.registerToken(dm2, 'SAAS', {'from': accounts[1]}))
-    print(tswp.registerSwapPair(1, dm1, dm2, 1, 1, {'from': accounts[1]}).events)
-    print(tswp.registerSwapPair(2, ONE_ADDRESS, dm2, 2000 * (10**18), (10**18), {'from': accounts[1]}).events)
+    print(tswp.registerToken(dm1, 'sDAI', {'from': accounts[1]}))
+    print(tswp.registerToken(dm2, 'vUSD', {'from': accounts[1]}))
+    print(tswp.registerSwapPair(1, dm1, dm2, 1, 1, False, {'from': accounts[1]}).events)
+    print(tswp.registerSwapPair(2, dm2, dm1, 0.9 * (10**10), (10**10), False, {'from': accounts[1]}).events)
+    print(tswp.registerSwapPair(3, dm2, dm1, 1, 1, True, {'from': accounts[1]}).events)
+    print(tswp.registerSwapPair(4, ONE_ADDRESS, dm2, 2000 * (10**18), (10**18), False, {'from': accounts[1]}).events)
 
     print('Approve 1')
     print(erc2.approve(tswp, 1000000 * (10**18), {'from': accounts[1]})) # Approve 
     print('Deposit')
     print(tswp.depositTokens(dm2, accounts[1], 1000000 * (10**18), {'from': accounts[1]}).events); # Deposit all of owner's SaaS Coins
     #print(tswp.depositTokens(dm1, accounts[3], 100, {'from': accounts[3]}).events); # Deposit 100 VUSD by User to swap for SAAS
+
+    print('Enable Merchant 1')
+    print(erc2.enableMerchant(accounts[2], {'from': accounts[1]}).events)
 
     print('Approve 2')
     print(erc1.approve(tswp, 1000 * (10**18), {'from': accounts[3]})) # Approve purchase of SaaS Coin
@@ -155,24 +163,41 @@ def main():
     sbid = uuid.uuid4().bytes
     fid = uuid.uuid4().bytes
     print(erc2.actionBatch(accounts[3], [0, 1], [
-        [tswp, accounts[3], 1, 1000 * (10**18)], # Swap
+        [tswp, accounts[3], 1, 500 * (10**18)], # Swap
     ], [
-        [sbid, accounts[3], False, True, fid, 10 * (10**18), ts_data(), [3, 60 * 60 * 48, 100 * (10**18)]], # Subscribe
+        [sbid, accounts[2], False, True, fid, 10 * (10**18), ts_data(), [3, 60 * 60 * 48, 100 * (10**18)]], # Subscribe
     ], {'from': accounts[1]}).events) # batch action
 
     #print('Swap')
     #print(tswp.swapTokens(1, accounts[3], 100, {'from': accounts[3]}).events); # SAAS owner swaps User's VUSD for SAAS
 
-    print('Buy')
-    print(tswp.buyTokens(2, {'from': accounts[3], 'value': (3*(10**18))}).events); # SAAS owner swaps User's VUSD for SAAS
-    print(tswp.withdrawTokens(ONE_ADDRESS, accounts[3], 1**(10**18), {'from': accounts[1]}).events);
+    #print('Buy')
+    #print(tswp.buyTokens(4, {'from': accounts[3], 'value': (3*(10**18))}).events); # SAAS owner swaps User's VUSD for SAAS
+    #print(tswp.withdrawTokens(ONE_ADDRESS, accounts[3], 1**(10**18), {'from': accounts[1]}).events);
 
     print('Balance')
-    print('User VUSD: {}'.format(erc1.balanceOf(accounts[3], {'from': accounts[3]}) / (10**18)))
-    print('User SAAS: {}'.format(erc2.balanceOf(accounts[3], {'from': accounts[3]}) / (10**18)))
-    print('Swap VUSD: {}'.format(erc1.balanceOf(tswp, {'from': accounts[1]}) / (10**18)))
-    print('Swap SAAS: {}'.format(erc2.balanceOf(tswp, {'from': accounts[1]}) / (10**18)))
-    print('Revenue SAAS: {}'.format(erc2.balanceOf(accounts[2], {'from': accounts[2]}) / (10**18)))
+    print('User sDAI: {}'.format(erc1.balanceOf(accounts[3], {'from': accounts[3]}) / (10**18)))
+    print('User vUSD: {}'.format(erc2.balanceOf(accounts[3], {'from': accounts[3]}) / (10**18)))
+    print('Swap sDAI: {}'.format(erc1.balanceOf(tswp, {'from': accounts[1]}) / (10**18)))
+    print('Swap vUSD: {}'.format(erc2.balanceOf(tswp, {'from': accounts[1]}) / (10**18)))
+    print('Revenue sDAI: {}'.format(erc1.balanceOf(accounts[2], {'from': accounts[2]}) / (10**18)))
+    print('Revenue vUSD: {}'.format(erc2.balanceOf(accounts[2], {'from': accounts[2]}) / (10**18)))
+
+    if True:
+        print('Swaps')
+        print(erc2.approve(tswp, 100 * (10**18), {'from': accounts[3]})) # Approve 
+        print(tswp.swapTokens(2, accounts[3], 100 * (10**18), {'from': accounts[3]}).events)
+
+        print(erc2.approve(tswp, 10 * (10**18), {'from': accounts[2]})) # Approve 
+        print(tswp.swapTokens(3, accounts[2], 10 * (10**18), {'from': accounts[2]}).events)
+
+        print('Balance')
+        print('User sDAI: {}'.format(erc1.balanceOf(accounts[3], {'from': accounts[3]}) / (10**18)))
+        print('User vUSD: {}'.format(erc2.balanceOf(accounts[3], {'from': accounts[3]}) / (10**18)))
+        print('Swap sDAI: {}'.format(erc1.balanceOf(tswp, {'from': accounts[1]}) / (10**18)))
+        print('Swap vUSD: {}'.format(erc2.balanceOf(tswp, {'from': accounts[1]}) / (10**18)))
+        print('Revenue sDAI: {}'.format(erc1.balanceOf(accounts[2], {'from': accounts[2]}) / (10**18)))
+        print('Revenue vUSD: {}'.format(erc2.balanceOf(accounts[2], {'from': accounts[2]}) / (10**18)))
 
     if False:
         #print('Subscribe')

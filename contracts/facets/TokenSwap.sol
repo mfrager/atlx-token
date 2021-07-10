@@ -5,6 +5,7 @@ import "../../libraries/DataTokenSwap.sol";
 import "../../libraries/ReentrancyGuard.sol";
 import "../../libraries/AccessControlEnumerable.sol";
 import "../../interfaces/IERC20.sol";
+import "../../interfaces/IERC20Merchant.sol";
 import "../../utils/Context.sol";
 
 contract TokenSwap is Context, ReentrancyGuard, AccessControlEnumerable {
@@ -40,7 +41,7 @@ contract TokenSwap is Context, ReentrancyGuard, AccessControlEnumerable {
         return (true);
     }
 
-    function registerSwapPair(uint32 pairId, address fromToken, address toToken, uint256 fromRate, uint256 toRate) external nonReentrant onlyRole(TOKEN_SWAP_ADMIN_ROLE) returns (bool) {
+    function registerSwapPair(uint32 pairId, address fromToken, address toToken, uint256 fromRate, uint256 toRate, bool merchant) external nonReentrant onlyRole(TOKEN_SWAP_ADMIN_ROLE) returns (bool) {
         DataTokenSwap storage s = DataTokenSwapStorage.diamondStorage();
         SwapPair storage sp = s.swapPairs[pairId];
         // require(sp.fromToken == address(0), "DUPLICATE_SWAP_PAIR");
@@ -51,6 +52,7 @@ contract TokenSwap is Context, ReentrancyGuard, AccessControlEnumerable {
         sp.toToken = toToken;
         sp.fromRate = fromRate;
         sp.toRate = toRate;
+        sp.merchant = merchant;
         emit RegisterSwapPair(pairId, fromToken, toToken, fromRate, toRate);
         return (true);
     }
@@ -100,6 +102,10 @@ contract TokenSwap is Context, ReentrancyGuard, AccessControlEnumerable {
         uint256 tokensOut = tokensIn * sp.fromRate;
         tokensOut = tokensOut / sp.toRate;
         require(s.tokenBalances[sp.toToken] >= tokensOut, "NOT_ENOUGH_TOKENS_TO_SWAP");
+        if (sp.merchant) {
+            bool isMerchant = IERC20Merchant(sp.fromToken).isValidMerchant(fromAccount);
+            require(isMerchant, "MERCHANT_ONLY_SWAP");
+        }
         if (sp.fromToken != address(1)) {
             bool ok1 = IERC20(sp.fromToken).transferFrom(fromAccount, address(this), tokensIn);
             require(ok1 == true, "ERC20_TRANSER_IN_FAILED");

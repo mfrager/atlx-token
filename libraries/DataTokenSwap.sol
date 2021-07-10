@@ -6,6 +6,7 @@ struct SwapPair {
     address toToken;
     uint256 fromRate;
     uint256 toRate;
+    bool merchant; // Merchant-only swap
 }
 
 struct DataTokenSwap {

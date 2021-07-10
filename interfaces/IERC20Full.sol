@@ -16,6 +16,8 @@ interface IERC20Full {
     function mint(address account, uint256 amount) external returns (bool);
     function burn(address account, uint256 amount) external returns (bool);
     function adminTransfer(address from, address to, uint256 amount) external returns (bool);
+    function enableMerchant(address merchant) external returns (bool);
+    function disableMerchant(address merchant) external returns (bool);
 
     function grantSubscriptionAdmin(bytes32 role, address account, address delegate) external returns (bool);
     function revokeSubscriptionAdmin(bytes32 role, address account, address delegate) external returns (bool);
@@ -27,6 +29,8 @@ interface IERC20Full {
     /**
      * @dev Emitted when a token has moved after a certain amount of time.
      */
+    event EnableMerchant(address indexed merchant);
+    event DisableMerchant(address indexed merchant);
     event BalanceLog(address indexed owner, uint256 balanceNew, uint256 balancePrev, uint256 balancePrevLog, uint ts);
     event Subscription(uint128 indexed subscrId, address indexed from, address indexed to, address terms);
     event SubscriptionUpdate(uint128 indexed subscrId, bool pausable, uint8 eventType, uint256 maxBudget, uint32 timeout, uint8 period);

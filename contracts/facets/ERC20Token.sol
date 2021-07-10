@@ -38,11 +38,14 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
 
     uint constant TRANSFER_LOG_WAIT_SECONDS = 24 * 60 * 60; // 1 per day
     bytes32 public constant ERC20_TOKEN_ADMIN_ROLE = keccak256("ERC20_TOKEN_ADMIN_ROLE");
+    bytes32 public constant MERCHANT_ADMIN_ROLE = keccak256("MERCHANT_ADMIN_ROLE");
     bytes32 public constant SUBSCRIPTION_ADMIN_ROLE = keccak256("SUBSCRIPTION_ADMIN_ROLE");
 
     /**
      * @dev Emitted when a token has moved after a certain amount of time.
      */
+    event EnableMerchant(address indexed merchant);
+    event DisableMerchant(address indexed merchant);
     event BalanceLog(address indexed owner, uint256 balanceNew, uint256 balancePrev, uint256 balancePrevLog, uint ts);
     event Subscription(uint128 indexed subscrId, address indexed from, address indexed to);
     event SubscriptionUpdate(uint128 indexed subscrId, bool pausable, uint8 eventType, uint256 maxBudget, uint32 timeout, uint8 period);
@@ -63,10 +66,31 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
         emit SubscriptionDelegateGranted(sender, address(1));
         _setupRole(DEFAULT_ADMIN_ROLE, sender);
         _setRoleAdmin(ERC20_TOKEN_ADMIN_ROLE, DEFAULT_ADMIN_ROLE);
+        _setRoleAdmin(MERCHANT_ADMIN_ROLE, DEFAULT_ADMIN_ROLE);
         _setRoleAdmin(SUBSCRIPTION_ADMIN_ROLE, DEFAULT_ADMIN_ROLE);
         _setupRole(ERC20_TOKEN_ADMIN_ROLE, sender);
+        _setupRole(MERCHANT_ADMIN_ROLE, sender);
         _setupRole(SUBSCRIPTION_ADMIN_ROLE, sender);
         _mint(_msgSender(), amount_);
+    }
+
+    function enableMerchant(address merchant) external nonReentrant onlyRole(MERCHANT_ADMIN_ROLE) returns (bool) {
+        DataERC20 storage s = DataERC20Storage.diamondStorage();
+        s._validMerchant[merchant] = true;
+        emit EnableMerchant(merchant);
+        return(true);
+    }
+
+    function disableMerchant(address merchant) external nonReentrant onlyRole(MERCHANT_ADMIN_ROLE) returns (bool) {
+        DataERC20 storage s = DataERC20Storage.diamondStorage();
+        s._validMerchant[merchant] = false;
+        emit DisableMerchant(merchant);
+        return(true);
+    }
+
+    function isValidMerchant(address merchant) external nonReentrant returns (bool) {
+        DataERC20 storage s = DataERC20Storage.diamondStorage();
+        return(s._validMerchant[merchant]);
     }
 
     function grantSubscriptionAdmin(bytes32 role, address account, address delegate) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) returns (bool) {
@@ -151,6 +175,7 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
             require(fromAccount == sender, "ACCESS_DENIED");
         }
         require(s._balances[fromAccount] >= 0, "ERC20_BALANCE_REQUIRED");
+        require(s._validMerchant[toAccount], "INVALID_MERCHANT");
         require(s._subscriptions[subscrId].mode == 0, "DUPLICATE_SUBSCRIPTION");
         SubscriptionData storage sb = s._subscriptions[subscrId];
         sb.mode = uint8(SubscriptionMode.ACTIVE);
