@@ -231,6 +231,10 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
             require(abortOnFail == true, "INVALID_SUBSCRIPTION");
             return(false);
         }
+        if (sd.mode == uint8(SubscriptionMode.CANCELLED)) {
+            require(abortOnFail == true, "CANCELLED_SUBSCRIPTION");
+            return(false);
+        }
         if (subscrData.eventType == uint8(EventType.FUND)) {
             _transfer(sd.from, sd.to, subscrData.amount);
             emit SubscriptionBill(subscrId, subscrData.eventId, subscrData.eventType, subscrData.amount, subscrData.thisBill.timestamp, uint8(EventResult.SUCCESS));
@@ -256,10 +260,6 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
             s._subscriptions[subscrId].mode = uint8(SubscriptionMode.CANCELLED);
             emit SubscriptionUpdate(subscrId, sd.pausable, subscrData.eventType, 0, 0, 0);
             return(true);
-        }
-        if (sd.mode == uint8(SubscriptionMode.CANCELLED)) {
-            require(abortOnFail == true, "CANCELLED_SUBSCRIPTION");
-            return(false);
         }
         uint8 res = _processTerms(subscrData);
         if (res != uint8(EventResult.SUCCESS)) {
