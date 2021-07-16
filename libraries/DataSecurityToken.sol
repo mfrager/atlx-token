@@ -59,7 +59,7 @@ struct SecurityOwner {
     address owner;
 }
 
-enum HoldingEvent { CREATE, ALLOCATE, TRANSFER, RETIRE }
+enum HoldingEventType { CREATE, ALLOCATE, TRANSFER, RETIRE }
 
 // CREATE - Mint to unallocated account
 // ALLOCATE - Allocate to initial owners
@@ -67,12 +67,12 @@ enum HoldingEvent { CREATE, ALLOCATE, TRANSFER, RETIRE }
 // RETIRE - Burn using unallocated account
 
 struct DataSecurityToken {
-    mapping(address => mapping(uint128 => uint256)) _balances;
     mapping(address => OwnerData) _owner;
-    mapping(address => SecurityData) _security;
+    mapping(uint128 => SecurityData) _security;
     mapping(uint128 => HoldingData) _holding;
     mapping(address => mapping(uint64 => uint128)) _ownerHoldingIndex;
     mapping(uint128 => mapping(address => bool)) _securityHolding;
+    mapping(uint128 => mapping(address => uint256)) _balances;
     mapping(uint128 => mapping(address => bool)) _validOwner;
     mapping(uint128 => bool) _validSecurity;
     mapping(uint128 => bool) _validHolding;
@@ -80,7 +80,6 @@ struct DataSecurityToken {
     mapping(uint64 => uint128) _securityIndex;
     mapping(uint64 => address) _ownerIndex;
     mapping(uint64 => uint128) _holdingIndex;
-    address _allocator;
     uint64 _totalSecurityCount;
     uint64 _totalOwnerCount;
     uint64 _totalHoldingCount;

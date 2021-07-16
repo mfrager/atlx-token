@@ -63,7 +63,7 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
         address sender = _msgSender();
         s._subscriptionAdmin[sender] = true;
         s._subscriptionDelegate[sender][address(1)] = true;
-        s._delegateCount[sender] = 1
+        s._delegateCount[sender] = 1;
         emit SubscriptionDelegateGranted(sender, address(1));
         _setupRole(DEFAULT_ADMIN_ROLE, sender);
         _setRoleAdmin(ERC20_TOKEN_ADMIN_ROLE, DEFAULT_ADMIN_ROLE);
@@ -102,7 +102,7 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
         if (s._delegateCount[account] == 0) {
             _setupRole(SUBSCRIPTION_ADMIN_ROLE, account);
         }
-        s._delegateCount[account] = s._delegateCount[account] + 1
+        s._delegateCount[account] = s._delegateCount[account] + 1;
         return(true);
     }
 
@@ -111,7 +111,7 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
         s._subscriptionAdmin[account] = false;
         s._subscriptionDelegate[account][delegate] = false;
         emit SubscriptionDelegateRevoked(account, delegate);
-        s._delegateCount[account] = s._delegateCount[account] - 1
+        s._delegateCount[account] = s._delegateCount[account] - 1;
         if (s._delegateCount[account] == 0) {
             revokeRole(SUBSCRIPTION_ADMIN_ROLE, account);
         }

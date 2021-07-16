@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "../../libraries/DataSecurityTokenSecurityToken.sol";
 import "../../libraries/DataSecurityToken.sol";
 import "../../libraries/AccessControlEnumerable.sol";
 import "../../libraries/ReentrancyGuard.sol";
 import "../../utils/Context.sol";
 
 /**
- * Security token from @tellix
+ * Security token from Atellix
  */
 contract SecurityToken is Context, ReentrancyGuard, AccessControlEnumerable {
 
@@ -17,37 +16,36 @@ contract SecurityToken is Context, ReentrancyGuard, AccessControlEnumerable {
     /**
      * @dev Emitted when a token has moved.
      */
+    event Transfer(uint128 indexed securityId, address indexed from, address indexed to, uint256 value);
     event BalanceLog(uint128 indexed securityId, address indexed owner, uint256 balanceNew, uint256 balancePrev, uint ts);
 
-    function setupSecurityToken(address manager_) external nonReentrant {
+    function setupSecurityToken() external nonReentrant {
         DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
         require(!s._setupDone, "SETUP_ALREADY_DONE");
         s._setupDone = true;
-        s._allocator = manager_;
-        s._validOwner[manager_] = true;
         address sender = _msgSender();
         _setupRole(DEFAULT_ADMIN_ROLE, sender);
         _setRoleAdmin(VALIDATOR_ROLE, DEFAULT_ADMIN_ROLE);
-        _setupRole(VALIDATOR_ROLE, manager_);
+        _setupRole(VALIDATOR_ROLE, sender);
     }
 
-    function enableOwner(address owner) external nonReentrant onlyRole(VALIDATOR_ROLE) returns (bool) {
+    function enableOwner(uint128 securityId, address owner) external nonReentrant onlyRole(VALIDATOR_ROLE) returns (bool) {
         DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
-        s._validOwner[owner] = true;
+        s._validOwner[securityId][owner] = true;
         // emit EnableOwner(merchant);
         return(true);
     }
 
-    function disableOwner(address owner) external nonReentrant onlyRole(VALIDATOR_ROLE) returns (bool) {
+    function disableOwner(uint128 securityId, address owner) external nonReentrant onlyRole(VALIDATOR_ROLE) returns (bool) {
         DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
-        s._validOwner[owner] = false;
+        s._validOwner[securityId][owner] = false;
         // emit DisableOwner(owner);
         return(true);
     }
 
-    function isValidOwner(address owner) external nonReentrant returns (bool) {
+    function isValidOwner(uint128 securityId, address owner) external nonReentrant returns (bool) {
         DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
-        return(s._validOwner[owner]);
+        return(s._validOwner[securityId][owner]);
     }
 
     function grantValidator(address account) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) returns (bool) {
@@ -95,10 +93,12 @@ contract SecurityToken is Context, ReentrancyGuard, AccessControlEnumerable {
     function processHoldingEvent(HoldingEvent calldata h) external nonReentrant returns (bool) {
         address sender = _msgSender();
         DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
-        if (h.eventType == uint8(HoldingEvent.CREATE)) {
+        if (h.eventType == uint8(HoldingEventType.CREATE)) {
             // Create new holding
-            require(hasRole(VALIDATOR_ROLE), "ACCESS_DENIED");
+            require(hasRole(VALIDATOR_ROLE, sender), "ACCESS_DENIED");
             require(h.recipient == address(0), "INVALID_RECIPIENT");
+            require(!s._validSecurity[h.holdingId], "HOLDING_MATCHES_EXISTING_SECURITY");
+            require(!s._validHolding[h.securityId], "SECURITY_MATCHES_EXISTING_HOLDING");
             s._validSecurity[h.securityId] = true;
             s._validOwner[h.securityId][h.owner] = true;
             s._validHolding[h.holdingId] = true;
@@ -106,35 +106,36 @@ contract SecurityToken is Context, ReentrancyGuard, AccessControlEnumerable {
             _createOwner(h.owner);
             _createHolding(h);
             _mint(h.securityId, h.owner, h.amount);
-        } else if (h.eventType == uint8(HoldingEvent.ALLOCATE)) {
+        } else if (h.eventType == uint8(HoldingEventType.ALLOCATE)) {
             // Create allocate holding by transferring to new owner
             require(s._validHolding[h.holdingId], "INVALID_HOLDING");
             require(s._validOwner[h.securityId][h.owner], "INVALID_OWNER");
-            require(hasRole(VALIDATOR_ROLE), "ACCESS_DENIED");
+            require(hasRole(VALIDATOR_ROLE, sender), "ACCESS_DENIED");
             HoldingData storage hd = s._holding[h.holdingId];
-            hd.allocated = allocated;
-        } else if (h.eventType == uint8(HoldingEvent.TRANSFER)) {
+            hd.allocated = h.allocated;
+        } else if (h.eventType == uint8(HoldingEventType.TRANSFER)) {
             // Create transfer an allocated holding
             require(s._validHolding[h.holdingId], "INVALID_HOLDING");
-            require(s._validOwner[h.owner], "INVALID_OWNER");
+            require(s._validOwner[h.securityId][h.owner], "INVALID_OWNER");
             bool allowed = false;
-            if (hasRole(VALIDATOR_ROLE)) {
+            if (hasRole(VALIDATOR_ROLE, sender)) {
                 allowed = true;
             } else if (s._holding[h.holdingId].owner == sender) {
                 allowed = true;
             }
             require(allowed, "ACCESS_DENIED");
-        } else if (h.eventType == uint8(HoldingEvent.RETIRE)) {
+            // TODO: Check for transfer restrictions
+        } else if (h.eventType == uint8(HoldingEventType.RETIRE)) {
             // Retire a holding and burn any remaining tokens
-            require(hasRole(VALIDATOR_ROLE), "ACCESS_DENIED");
+            require(hasRole(VALIDATOR_ROLE, sender), "ACCESS_DENIED");
         }
     }
 
-    function _createSecurity(uint128 securityId, address owner) {
+    function _createSecurity(uint128 securityId, address owner) internal {
         DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
-        if (s._securityHoldingCount[securityId] == 0) {
+        SecurityData storage sd = s._security[securityId];
+        if (sd.securityHoldingCount == 0) {
             // Need to create since there will always be at least one holding
-            SecurityData storage sd = s._security[securityId];
             sd.securityId = securityId;
             sd.securityIdx = s._totalSecurityCount;
             sd.allocator = owner;
@@ -143,7 +144,7 @@ contract SecurityToken is Context, ReentrancyGuard, AccessControlEnumerable {
         }
     }
 
-    function _createOwner(address owner) {
+    function _createOwner(address owner) internal {
         DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
         OwnerData storage od = s._owner[owner];
         if (od.ownerHoldingCount == 0) {
@@ -154,7 +155,7 @@ contract SecurityToken is Context, ReentrancyGuard, AccessControlEnumerable {
         }
     }
 
-    function _createHolding(HoldingEvent memory h) {
+    function _createHolding(HoldingEvent memory h) internal {
         DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
         if (!s._securityHolding[h.securityId][h.owner]) {
             s._securityHolding[h.securityId][h.owner] = true;
@@ -174,7 +175,7 @@ contract SecurityToken is Context, ReentrancyGuard, AccessControlEnumerable {
         }
     }
 
-    function listSecurities() public view returns (Security[] memory) {
+    function listSecurities() external view returns (Security[] memory) {
         DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
         Security[] memory list = new Security[](s._totalSecurityCount);
         for (uint64 i = 0; i < s._totalSecurityCount; i++) {
@@ -183,7 +184,7 @@ contract SecurityToken is Context, ReentrancyGuard, AccessControlEnumerable {
         return(list);
     }
 
-    function listOwners() public view returns (SecurityOwner[] memory) {
+    function listOwners() external view returns (SecurityOwner[] memory) {
         DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
         SecurityOwner[] memory list = new SecurityOwner[](s._totalOwnerCount);
         for (uint64 i = 0; i < s._totalOwnerCount; i++) {
@@ -192,7 +193,7 @@ contract SecurityToken is Context, ReentrancyGuard, AccessControlEnumerable {
         return(list);
     }
 
-    function listSecurityHoldings(uint128 securityId) public view returns (HoldingData[] memory) {
+    function listSecurityHoldings(uint128 securityId) external view returns (HoldingData[] memory) {
         DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
         SecurityData storage sd = s._security[securityId];
         HoldingData[] memory list = new HoldingData[](sd.securityHoldingCount);
@@ -204,7 +205,7 @@ contract SecurityToken is Context, ReentrancyGuard, AccessControlEnumerable {
         return(list);
     }
 
-    function listOwnerHoldings(address owner) public view returns (HoldingData[] memory) {
+    function listOwnerHoldings(address owner) external view returns (HoldingData[] memory) {
         DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
         OwnerData storage sd = s._owner[owner];
         HoldingData[] memory list = new HoldingData[](sd.ownerHoldingCount);
@@ -226,14 +227,14 @@ contract SecurityToken is Context, ReentrancyGuard, AccessControlEnumerable {
      * overridden;
      *
      */
-    function decimals() public view virtual returns (uint8) {
+    function decimals() external view virtual returns (uint8) {
         return 18;
     }
 
     /**
      * @dev The number of tokens for each security times 10**18
      */
-    function totalSupply(uint128 securityId) public view virtual returns (uint256) {
+    function totalSupply(uint128 securityId) external view virtual returns (uint256) {
         DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
         return s._totalSupply[securityId];
     }
@@ -241,7 +242,7 @@ contract SecurityToken is Context, ReentrancyGuard, AccessControlEnumerable {
     /**
      * @dev See {IERC20-balanceOf}.
      */
-    function balanceOf(uint128 securityId, address account) public view virtual returns (uint256) {
+    function balanceOf(uint128 securityId, address account) external view virtual returns (uint256) {
         DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
         return s._balances[securityId][account];
     }
@@ -260,15 +261,10 @@ contract SecurityToken is Context, ReentrancyGuard, AccessControlEnumerable {
      * - `recipient` cannot be the zero address.
      * - `sender` must have a balance of at least `amount`.
      */
-    function _transfer(
-        uint128 securityId,
-        address sender,
-        address recipient,
-        uint256 amount
-    ) internal virtual {
+    function _transfer(uint128 securityId, address sender, address recipient, uint256 amount) internal virtual {
         DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
         require(s._validSecurity[securityId], "INVALID_SECURITY");
-        require(s._validOwner[sec[recipient], "INVALID_OWNER");
+        require(s._validOwner[securityId][recipient], "INVALID_OWNER");
         require(sender != address(0), "TRANSFER_FROM_ZERO_ADDRESS");
         require(recipient != address(0), "TRANSFER_TO_ZERO_ADDRESS");
         require(recipient != sender, "TRANSFER_TO_SAME_ADDRESS");
