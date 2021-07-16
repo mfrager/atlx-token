@@ -19,22 +19,36 @@ struct HoldingEvent {
     uint256 amount;
     address owner;
     address recipient;
+    bool allocated;
     TimestampData eventTs;
 }
 
 struct HoldingData {
     uint128 securityId;
     uint128 holdingId;
+    uint128 createEventId;
+    uint64 holdingIdx;
+    uint64 ownerHoldingIdx;
     address owner;
-    uint32 securityIdx;
-    uint32 ownerIdx;
-    uint32 holdingIdx;
     bool allocated;
     bool retired;
     // bool restricted;
     // TimestampData openTs;
     // TimestampData retiredTs;
     // TimestampData restrictedUntilTs;
+}
+
+struct SecurityData {
+    uint128 securityId;
+    uint64 securityIdx;
+    uint64 securityHoldingCount;
+    address allocator;
+}
+
+struct OwnerData {
+    address owner;
+    uint64 ownerIdx;
+    uint64 ownerHoldingCount;
 }
 
 struct Security {
@@ -54,21 +68,21 @@ enum HoldingEvent { CREATE, ALLOCATE, TRANSFER, RETIRE }
 
 struct DataSecurityToken {
     mapping(address => mapping(uint128 => uint256)) _balances;
-    mapping(address => mapping(uint32 => uint128)) _ownerHoldingIndex;
+    mapping(address => OwnerData) _owner;
+    mapping(address => SecurityData) _security;
+    mapping(uint128 => HoldingData) _holding;
+    mapping(address => mapping(uint64 => uint128)) _ownerHoldingIndex;
     mapping(uint128 => mapping(address => bool)) _securityHolding;
     mapping(uint128 => mapping(address => bool)) _validOwner;
     mapping(uint128 => bool) _validSecurity;
     mapping(uint128 => bool) _validHolding;
-    mapping(uint128 => HoldingData) _holding;
     mapping(uint128 => uint256) _totalSupply;
-    mapping(address => uint32) _ownerHoldingCount;
-    mapping(uint128 => uint32) _securityHoldingCount;
-    mapping(uint32 => uint128) _securityIndex;
-    mapping(uint32 => address) _ownerIndex;
-    mapping(uint32 => uint128) _holdingIndex;
+    mapping(uint64 => uint128) _securityIndex;
+    mapping(uint64 => address) _ownerIndex;
+    mapping(uint64 => uint128) _holdingIndex;
     address _allocator;
-    uint32 _totalSecurityCount;
-    uint32 _totalOwnerCount;
+    uint64 _totalSecurityCount;
+    uint64 _totalOwnerCount;
     uint64 _totalHoldingCount;
     bool _setupDone;
 }
