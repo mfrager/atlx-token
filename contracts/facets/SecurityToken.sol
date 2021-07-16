@@ -8,53 +8,27 @@ import "../../libraries/ReentrancyGuard.sol";
 import "../../utils/Context.sol";
 
 /**
- * @dev Implementation of the {IERC20} interface.
- *
- * This implementation is agnostic to the way tokens are created. This means
- * that a supply mechanism has to be added in a derived contract using {_mint}.
- * For a generic mechanism see {ERC20PresetMinterPauser}.
- *
- * TIP: For a detailed writeup see our guide
- * https://forum.zeppelin.solutions/t/how-to-implement-erc20-supply-mechanisms/226[How
- * to implement supply mechanisms].
- *
- * We have followed general OpenZeppelin guidelines: functions revert instead
- * of returning `false` on failure. This behavior is nonetheless conventional
- * and does not conflict with the expectations of ERC20 applications.
- *
- * Additionally, an {Approval} event is emitted on calls to {transferFrom}.
- * This allows applications to reconstruct the allowance for all accounts just
- * by listening to said events. Other implementations of the EIP may not emit
- * these events, as it isn't required by the specification.
- *
- * Finally, the non-standard {decreaseAllowance} and {increaseAllowance}
- * functions have been added to mitigate the well-known issues around setting
- * allowances. See {IERC20-approve}.
+ * Security token from @tellix
  */
-contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable {
+contract SecurityToken is Context, ReentrancyGuard, AccessControlEnumerable {
 
     bytes32 public constant VALIDATOR_ROLE = keccak256("VALIDATOR_ROLE");
 
     /**
-     * @dev Emitted when a token has moved after a certain amount of time.
+     * @dev Emitted when a token has moved.
      */
-    event BalanceLog(address indexed owner, uint256 balanceNew, uint256 balancePrev, uint ts);
+    event BalanceLog(uint128 indexed securityId, address indexed owner, uint256 balanceNew, uint256 balancePrev, uint ts);
 
-    function setupSecurityToken(string memory name_, string memory symbol_, string memory url_, address manager_, uint256 amount_) external nonReentrant {
+    function setupSecurityToken(address manager_) external nonReentrant {
         DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
         require(!s._setupDone, "SETUP_ALREADY_DONE");
         s._setupDone = true;
-        s._name = name_;
-        s._symbol = symbol_;
-        s._url = url_;
+        s._allocator = manager_;
+        s._validOwner[manager_] = true;
         address sender = _msgSender();
         _setupRole(DEFAULT_ADMIN_ROLE, sender);
         _setRoleAdmin(VALIDATOR_ROLE, DEFAULT_ADMIN_ROLE);
-        _setupRole(VALIDATOR_ROLE, sender);
-        if (amount_ > 0) {
-            _mint(manager_, amount_);
-            // TODO: create holding
-        }
+        _setupRole(VALIDATOR_ROLE, manager_);
     }
 
     function enableOwner(address owner) external nonReentrant onlyRole(VALIDATOR_ROLE) returns (bool) {
@@ -78,90 +52,142 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable {
 
     function grantValidator(address account) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) returns (bool) {
         DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
-        // emit SubscriptionDelegateGranted(sender, delegate);
+        // emit ValdiatorGranted(sender, delegate);
         _setupRole(VALIDATOR_ROLE, account);
         return(true);
     }
 
     function revokeValidator(address account) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) returns (bool) {
-        address sender = _msgSender();
         DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
-        // emit SubscriptionDelegateRevoked(sender, delegate);
+        // emit ValidatorRevoked(sender, delegate);
         revokeRole(VALIDATOR_ROLE, account);
         return(true);
     }
 
-    function setHolding(uint128 holdingId, HoldingData calldata holdingInfo) {
-    }
+    /* function enableSecurity(uint128 securityId) external nonReentrant onlyRole(VALIDATOR_ROLE) returns (bool) {
+        DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
+        s._validSecurity[securityId] = true;
+        // emit SecurityEnabled(securityId);
+        return(true);
+    } */
 
+    /* function disableSecurity(uint128 securityId) external nonReentrant onlyRole(VALIDATOR_ROLE) returns (bool) {
+        DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
+        s._validSecurity[securityId] = false;
+        // emit SecurityDisabled(securityId);
+        return(true);
+    } */
 
-        if (spec.period == uint8(SubscriptionPeriod.YEARLY)) {
-            if (s._yearly[subscrEvent.subscrId][subscrEvent.thisBill.year]) {
-                return(uint8(EventResult.DUPLICATE));
+    /* function enableHolding(uint128 holdingId) external nonReentrant onlyRole(VALIDATOR_ROLE) returns (bool) {
+        DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
+        s._validHolding[holdingId] = true;
+        // emit HoldingEnabled(holdingId);
+        return(true);
+    } */
+
+    /* function disableHolding(uint128 holdingId) external nonReentrant onlyRole(VALIDATOR_ROLE) returns (bool) {
+        DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
+        s._validHolding[holdingId] = false;
+        // emit HoldingDisabled(holdingId);
+        return(true);
+    } */
+
+    function processHoldingEvent(HoldingEvent calldata h) external nonReentrant returns (bool) {
+        address sender = _msgSender();
+        DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
+        if (h.eventType == uint8(HoldingEvent.CREATE)) {
+            // Create new holding
+            require(hasRole(VALIDATOR_ROLE), "ACCESS_DENIED");
+            s._validSecurity[h.securityId] = true;
+            s._validOwner[h.securityId][h.owner] = true;
+            s._validHolding[h.holdingId] = true;
+            _createSecurity(h);
+            _createHolding(h);
+        } else if (h.eventType == uint8(HoldingEvent.ALLOCATE)) {
+            // Create allocate holding by transferring to new owner
+            require(s._validHolding[h.holdingId], "INVALID_HOLDING");
+            require(s._validOwner[h.securityId][h.owner], "INVALID_OWNER");
+            require(hasRole(VALIDATOR_ROLE), "ACCESS_DENIED");
+        } else if (h.eventType == uint8(HoldingEvent.TRANSFER)) {
+            // Create transfer an allocated holding
+            require(s._validHolding[h.holdingId], "INVALID_HOLDING");
+            require(s._validOwner[h.owner], "INVALID_OWNER");
+            bool allowed = false;
+            if (hasRole(VALIDATOR_ROLE)) {
+                allowed = true;
+            } else if (s._holding[h.holdingId].owner == sender) {
+                allowed = true;
             }
-            s._yearly[subscrEvent.subscrId][subscrEvent.thisBill.year] = true;
-            return(uint8(EventResult.SUCCESS));
-        } else if (spec.period == uint8(SubscriptionPeriod.QUARTERLY)) {
-            if (s._quarterly[subscrEvent.subscrId][subscrEvent.thisBill.quarter]) {
-                return(uint8(EventResult.DUPLICATE));
-            }
-            s._quarterly[subscrEvent.subscrId][subscrEvent.thisBill.quarter] = true;
-            return(uint8(EventResult.SUCCESS));
-        } else if (spec.period == uint8(SubscriptionPeriod.MONTHLY)) {
-            if (s._monthly[subscrEvent.subscrId][subscrEvent.thisBill.month]) {
-                return(uint8(EventResult.DUPLICATE));
-            }
-            s._monthly[subscrEvent.subscrId][subscrEvent.thisBill.month] = true;
-            return(uint8(EventResult.SUCCESS));
-        } else if (spec.period == uint8(SubscriptionPeriod.WEEKLY)) {
-            if (s._weekly[subscrEvent.subscrId][subscrEvent.thisBill.week]) {
-                return(uint8(EventResult.DUPLICATE));
-            }
-            s._weekly[subscrEvent.subscrId][subscrEvent.thisBill.week] = true;
-            return(uint8(EventResult.SUCCESS));
-        } else if (spec.period == uint8(SubscriptionPeriod.DAILY)) {
-            if (s._daily[subscrEvent.subscrId][subscrEvent.thisBill.day]) {
-                return(uint8(EventResult.DUPLICATE));
-            }
-            s._daily[subscrEvent.subscrId][subscrEvent.thisBill.day] = true;
-            return(uint8(EventResult.SUCCESS));
+            require(allowed, "ACCESS_DENIED");
+        } else if (h.eventType == uint8(HoldingEvent.RETIRE)) {
+            // Retire a holding and burn any remaining tokens
+            require(hasRole(VALIDATOR_ROLE), "ACCESS_DENIED");
         }
-        return(uint8(EventResult.ABORT));
     }
 
-    function mint(address account, uint256 amount) external nonReentrant onlyRole(TOKEN_ADMIN_ROLE) returns (bool) {
-        _mint(account, amount);
-        return(true);
-    }
-
-    function burn(address account, uint256 amount) external nonReentrant onlyRole(TOKEN_ADMIN_ROLE) returns (bool) {
-        _burn(account, amount);
-        return(true);
-    }
-
-    /**
-     * @dev Returns the name of the token.
-     */
-    function name() public view virtual override returns (string memory) {
+    function _createSecurity(HoldingEvent memory h) {
         DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
-        return s._name;
+        if (s._securityHoldingCount[h.securityId] == 0) {
+            // Need to create since there will always be at least one holding
+            s._securityIndex[s._totalSecurityCount] = h.securityId;
+            s._totalSecurityCount++;
+        }
     }
 
-    /**
-     * @dev Returns the symbol of the token, usually a shorter version of the
-     * name.
-     */
-    function symbol() public view virtual override returns (string memory) {
-        DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
-        return s._symbol;
+    function _createOwner(HoldingEvent memory h) {
+        if (s._ownerHoldingCount[h.owner] == 0) {
+            s._totalOwnerCount++;
+        }
     }
 
-    /**
-     * @dev Returns the token URL
-     */
-    function url() public view virtual override returns (string memory) {
+    function _createHolding(HoldingEvent memory h) {
         DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
-        return s._url;
+        if (!s._securityHolding[h.securityId][h.owner]) {
+            s._securityHolding[h.securityId][h.owner] = true;
+            s._ownerHoldingCount[h.owner]++;
+            HoldingData storage hd = s._holding[h.holdingId];
+            //hd.
+        }
+    }
+
+    function listSecurities() public view returns (Security[] memory) {
+        DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
+        Security[] memory list = new Security[](s._totalSecurityCount);
+        for (uint32 i = 0; i < s._totalSecurityCount; i++) {
+            list[i].securityId = s._securityIndex[i];
+        }
+        return(list);
+    }
+
+    function listOwners() public view returns (SecurityOwner[] memory) {
+        DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
+        SecurityOwner[] memory list = new SecurityOwner[](s._totalOwnerCount);
+        for (uint32 i = 0; i < s._totalOwnerCount; i++) {
+            list[i].owner = s._ownerIndex[i];
+        }
+        return(list);
+    }
+
+    function listSecurityHoldings(uint128 securityId) public view returns (HoldingData[] memory) {
+        DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
+        HoldingData[] memory list = new HoldingData[](s._securityHoldingCount[securityId]);
+        for (uint32 i = 0; i < s._securityHoldingCount[securityId]; i++) {
+            uint128 holdingId = s._holdingIndex[i];
+            HoldingData storage hd = s._holding[holdingId];
+            list[i] = hd;
+        }
+        return(list);
+    }
+
+    function listOwnerHoldings(address owner) public view returns (HoldingData[] memory) {
+        DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
+        HoldingData[] memory list = new HoldingData[](s._ownerHoldingCount[owner]);
+        for (uint32 i = 0; i < s._ownerHoldingCount[owner]; i++) {
+            uint128 holdingId = s._ownerHoldingIndex[owner][i];
+            HoldingData storage hd = s._holding[holdingId];
+            list[i] = hd;
+        }
+        return(list);
     }
 
     /**
@@ -173,139 +199,25 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable {
      * Ether and Wei. This is the value {ERC20} uses, unless this function is
      * overridden;
      *
-     * NOTE: This information is only used for _display_ purposes: it in
-     * no way affects any of the arithmetic of the contract, including
-     * {IERC20-balanceOf} and {IERC20-transfer}.
      */
     function decimals() public view virtual override returns (uint8) {
         return 18;
     }
 
     /**
-     * @dev See {IERC20-totalSupply}.
+     * @dev The number of tokens for each security times 10**18
      */
-    function totalSupply() public view virtual override returns (uint256) {
+    function totalSupply(uint128 securityId) public view virtual override returns (uint256) {
         DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
-        return s._totalSupply;
+        return s._totalSupply[securityId];
     }
 
     /**
      * @dev See {IERC20-balanceOf}.
      */
-    function balanceOf(address account) public view virtual override returns (uint256) {
+    function balanceOf(uint128 securityId, address account) public view virtual override returns (uint256) {
         DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
-        return s._balances[account];
-    }
-
-    /**
-     * @dev See {IERC20-transfer}.
-     *
-     * Requirements:
-     *
-     * - `recipient` cannot be the zero address.
-     * - the caller must have a balance of at least `amount`.
-     */
-    function transfer(address recipient, uint256 amount) public virtual override returns (bool) {
-        _transfer(_msgSender(), recipient, amount);
-        return true;
-    }
-
-    /**
-     * @dev See {IERC20-allowance}.
-     */
-    function allowance(address owner, address spender) public view virtual override returns (uint256) {
-        DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
-        return s._allowances[owner][spender];
-    }
-
-    /**
-     * @dev See {IERC20-approve}.
-     *
-     * Requirements:
-     *
-     * - `spender` cannot be the zero address.
-     */
-    function approve(address spender, uint256 amount) public virtual override returns (bool) {
-        _approve(_msgSender(), spender, amount);
-        return true;
-    }
-
-    /**
-     * @dev See {IERC20-transferFrom}.
-     *
-     * Emits an {Approval} event indicating the updated allowance. This is not
-     * required by the EIP. See the note at the beginning of {ERC20}.
-     *
-     * Requirements:
-     *
-     * - `sender` and `recipient` cannot be the zero address.
-     * - `sender` must have a balance of at least `amount`.
-     * - the caller must have allowance for ``sender``'s tokens of at least
-     * `amount`.
-     */
-    function transferFrom(
-        address sender,
-        address recipient,
-        uint256 amount
-    ) public virtual override returns (bool) {
-        _transfer(sender, recipient, amount);
-
-        DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
-        uint256 currentAllowance = s._allowances[sender][_msgSender()];
-
-        if (currentAllowance < amount) {
-            string memory err = string(abi.encodePacked("TRANSER_EXCEEDS_ALLOWANCE:", _toString(_msgSender())));
-            revert(err);
-        }
-
-        unchecked {
-            _approve(sender, _msgSender(), currentAllowance - amount);
-        }
-
-        return true;
-    }
-
-    /**
-     * @dev Atomically increases the allowance granted to `spender` by the caller.
-     *
-     * This is an alternative to {approve} that can be used as a mitigation for
-     * problems described in {IERC20-approve}.
-     *
-     * Emits an {Approval} event indicating the updated allowance.
-     *
-     * Requirements:
-     *
-     * - `spender` cannot be the zero address.
-     */
-    function increaseAllowance(address spender, uint256 addedValue) public virtual returns (bool) {
-        DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
-        _approve(_msgSender(), spender, s._allowances[_msgSender()][spender] + addedValue);
-        return true;
-    }
-
-    /**
-     * @dev Atomically decreases the allowance granted to `spender` by the caller.
-     *
-     * This is an alternative to {approve} that can be used as a mitigation for
-     * problems described in {IERC20-approve}.
-     *
-     * Emits an {Approval} event indicating the updated allowance.
-     *
-     * Requirements:
-     *
-     * - `spender` cannot be the zero address.
-     * - `spender` must have allowance for the caller of at least
-     * `subtractedValue`.
-     */
-    function decreaseAllowance(address spender, uint256 subtractedValue) public virtual returns (bool) {
-        DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
-        uint256 currentAllowance = s._allowances[_msgSender()][spender];
-        require(currentAllowance >= subtractedValue, "DECREASED_ALLOWANCE_BELOW_ZERO");
-        unchecked {
-            _approve(_msgSender(), spender, currentAllowance - subtractedValue);
-        }
-
-        return true;
+        return s._balances[securityId][account];
     }
 
     /**
@@ -348,8 +260,8 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable {
         _recordTransfer(security, recipient, recipBalance);
     }
 
-    /** @dev Creates a running total log of holdings
-     *
+    /** 
+     * @dev Creates a running total log of holdings
      */
     function _recordTransfer(uint128 security, address owner, uint256 prev) internal virtual {
         DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
@@ -365,14 +277,14 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable {
      *
      * - `account` cannot be the zero address.
      */
-    function _mint(uint128 security, address account, uint256 amount) internal virtual {
+    function _mint(uint128 securityId, address account, uint256 amount) internal virtual {
         require(account != address(0), "MINT_TO_ZERO_ADDRESS");
         DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
-        uint256 prev = s._balances[security][account];
-        s._totalSupply[security] += amount;
-        s._balances[security][account] += amount;
-        emit Transfer(security, address(0), account, amount);
-        emit BalanceLog(account, s._balances[security][account], prev, block.timestamp);
+        uint256 prev = s._balances[securityId][account];
+        s._totalSupply[securityId] += amount;
+        s._balances[securityId][account] += amount;
+        emit Transfer(securityId, address(0), account, amount);
+        emit BalanceLog(securityId, account, s._balances[securityId][account], prev, block.timestamp);
     }
 
     /**
@@ -386,17 +298,17 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable {
      * - `account` cannot be the zero address.
      * - `account` must have at least `amount` tokens.
      */
-    function _burn(address account, uint256 amount) internal virtual {
+    function _burn(uint128 securityId, address account, uint256 amount) internal virtual {
         require(account != address(0), "BURN_FROM_ZERO_ADDRESS");
         DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
-        uint256 accountBalance = s._balances[account];
+        uint256 accountBalance = s._balances[securityId][account];
         require(accountBalance >= amount, "BURN_AMOUNT_EXCEEDS_BALANCE");
-        uint256 prev = s._balances[account];
+        uint256 prev = s._balances[securityId][account];
         unchecked {
-            s._balances[account] = accountBalance - amount;
+            s._balances[securityId][account] = accountBalance - amount;
         }
-        s._totalSupply -= amount;
-        emit Transfer(account, address(0), amount);
-        emit BalanceLog(account, s._balances[account], prev, block.timestamp);
+        s._totalSupply[securityId] -= amount;
+        emit Transfer(securityId, account, address(0), amount);
+        emit BalanceLog(securityId, account, s._balances[securityId][account], prev, block.timestamp);
     }
 }

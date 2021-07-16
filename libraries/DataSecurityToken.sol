@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 // UTC
-struct HoldingTimestampData {
+struct TimestampData {
     uint64 timestamp;
     bytes4 year;
     bytes5 quarter; // Quarter number in year (1, 2, 3, 4)
@@ -12,21 +12,37 @@ struct HoldingTimestampData {
 }
 
 struct HoldingEvent {
+    uint128 securityId;
     uint128 holdingId;
     uint128 eventId;
     uint8 eventType;
     uint256 amount;
     address owner;
-    address validator;
-    TimestampData tsEvent;
+    address recipient;
+    TimestampData eventTs;
 }
 
 struct HoldingData {
+    uint128 securityId;
+    uint128 holdingId;
     address owner;
+    uint32 securityIdx;
+    uint32 ownerIdx;
+    uint32 holdingIdx;
     bool allocated;
-    bool open;
-    HoldingTimestampData tsOpen;
-    HoldingTimestampData tsClosed;
+    bool retired;
+    // bool restricted;
+    // TimestampData openTs;
+    // TimestampData retiredTs;
+    // TimestampData restrictedUntilTs;
+}
+
+struct Security {
+    uint128 securityId;
+}
+
+struct SecurityOwner {
+    address owner;
 }
 
 enum HoldingEvent { CREATE, ALLOCATE, TRANSFER, RETIRE }
@@ -37,20 +53,23 @@ enum HoldingEvent { CREATE, ALLOCATE, TRANSFER, RETIRE }
 // RETIRE - Burn using unallocated account
 
 struct DataSecurityToken {
-    mapping(address => mapping(uint128 => uint256) _balances;
-    mapping(address => mapping(uint128 => uint32)) _ownerHoldings;
+    mapping(address => mapping(uint128 => uint256)) _balances;
     mapping(address => mapping(uint32 => uint128)) _ownerHoldingIndex;
-    mapping(address => bool) _validOwner;
-    mapping(uint128 => bool) _validHolding;
+    mapping(uint128 => mapping(address => bool)) _securityHolding;
+    mapping(uint128 => mapping(address => bool)) _validOwner;
     mapping(uint128 => bool) _validSecurity;
-    mapping(uint128 => uint256) _totalSupply;
-    mapping(uint128 => uint64) _holdingCount;
+    mapping(uint128 => bool) _validHolding;
     mapping(uint128 => HoldingData) _holding;
+    mapping(uint128 => uint256) _totalSupply;
+    mapping(address => uint32) _ownerHoldingCount;
+    mapping(uint128 => uint32) _securityHoldingCount;
+    mapping(uint32 => uint128) _securityIndex;
+    mapping(uint32 => address) _ownerIndex;
+    mapping(uint32 => uint128) _holdingIndex;
     address _allocator;
-    uint256 _totalHoldingCount;
-    string _name;
-    string _symbol;
-    string _url;
+    uint32 _totalSecurityCount;
+    uint32 _totalOwnerCount;
+    uint64 _totalHoldingCount;
     bool _setupDone;
 }
 
