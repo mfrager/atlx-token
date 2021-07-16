@@ -19,8 +19,8 @@ interface IERC20Full {
     function enableMerchant(address merchant) external returns (bool);
     function disableMerchant(address merchant) external returns (bool);
 
-    function grantSubscriptionAdmin(bytes32 role, address account, address delegate) external returns (bool);
-    function revokeSubscriptionAdmin(bytes32 role, address account, address delegate) external returns (bool);
+    function grantSubscriptionAdmin(address account, address delegate) external returns (bool);
+    function revokeSubscriptionAdmin(address account, address delegate) external returns (bool);
     function beginSubscription(uint128 subscrId, address fromAccount, address toAccount, address terms, bool pausable, SubscriptionSpec calldata spec) external returns (bool);
     function processSubscription(SubscriptionEvent calldata subscrData, bool abortOnFail) external returns (bool);
     function processSubscriptionBatch(SubscriptionEvent[] calldata subscrList, bool abortOnFail) external returns (bool);

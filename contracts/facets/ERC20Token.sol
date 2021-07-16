@@ -63,6 +63,7 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
         address sender = _msgSender();
         s._subscriptionAdmin[sender] = true;
         s._subscriptionDelegate[sender][address(1)] = true;
+        s._delegateCount[sender] = 1
         emit SubscriptionDelegateGranted(sender, address(1));
         _setupRole(DEFAULT_ADMIN_ROLE, sender);
         _setRoleAdmin(ERC20_TOKEN_ADMIN_ROLE, DEFAULT_ADMIN_ROLE);
@@ -93,23 +94,27 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
         return(s._validMerchant[merchant]);
     }
 
-    function grantSubscriptionAdmin(bytes32 role, address account, address delegate) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) returns (bool) {
-        address sender = _msgSender();
+    function grantSubscriptionAdmin(address account, address delegate) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) returns (bool) {
         DataERC20 storage s = DataERC20Storage.diamondStorage();
-        s._subscriptionAdmin[sender] = true;
-        s._subscriptionDelegate[sender][delegate] = true;
-        emit SubscriptionDelegateGranted(sender, delegate);
-        _setupRole(SUBSCRIPTION_ADMIN_ROLE, sender);
+        s._subscriptionAdmin[account] = true;
+        s._subscriptionDelegate[account][delegate] = true;
+        emit SubscriptionDelegateGranted(account, delegate);
+        if (s._delegateCount[account] == 0) {
+            _setupRole(SUBSCRIPTION_ADMIN_ROLE, account);
+        }
+        s._delegateCount[account] = s._delegateCount[account] + 1
         return(true);
     }
 
-    function revokeSubscriptionAdmin(bytes32 role, address account, address delegate) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) returns (bool) {
-        address sender = _msgSender();
+    function revokeSubscriptionAdmin(address account, address delegate) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) returns (bool) {
         DataERC20 storage s = DataERC20Storage.diamondStorage();
-        s._subscriptionAdmin[sender] = false;
-        s._subscriptionDelegate[sender][delegate] = false;
-        emit SubscriptionDelegateRevoked(sender, delegate);
-        revokeRole(SUBSCRIPTION_ADMIN_ROLE, sender);
+        s._subscriptionAdmin[account] = false;
+        s._subscriptionDelegate[account][delegate] = false;
+        emit SubscriptionDelegateRevoked(account, delegate);
+        s._delegateCount[account] = s._delegateCount[account] - 1
+        if (s._delegateCount[account] == 0) {
+            revokeRole(SUBSCRIPTION_ADMIN_ROLE, account);
+        }
         return(true);
     }
 

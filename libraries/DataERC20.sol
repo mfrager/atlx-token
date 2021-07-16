@@ -10,6 +10,7 @@ struct DataERC20 {
     mapping(address => uint256) _lastLogAmount;
     mapping(address => bool) _validMerchant;
     mapping(address => bool) _subscriptionAdmin;
+    mapping(address => uint8) _delegateCount;
     mapping(address => mapping(address => bool)) _subscriptionDelegate;
     mapping(uint128 => SubscriptionData) _subscriptions;
     mapping(uint128 => SubscriptionSpec) _subscriptionSpec;
