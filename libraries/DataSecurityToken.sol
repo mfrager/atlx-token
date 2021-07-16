@@ -78,6 +78,7 @@ struct DataSecurityToken {
     mapping(uint128 => SecurityData) _security;
     mapping(uint128 => HoldingData) _holding;
     mapping(address => mapping(uint64 => uint128)) _ownerHoldingIndex;
+    mapping(uint128 => mapping(uint64 => uint128)) _securityHoldingIndex;
     mapping(uint128 => mapping(address => bool)) _securityHolding;
     mapping(uint128 => mapping(address => uint256)) _balances;
     mapping(uint128 => mapping(address => bool)) _validOwner;

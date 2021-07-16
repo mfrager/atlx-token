@@ -158,7 +158,9 @@ contract SecurityToken is Context, ReentrancyGuard, AccessControlEnumerable {
     function _createHolding(HoldingEvent memory h) internal {
         DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
         if (!s._securityHolding[h.securityId][h.owner]) {
+            SecurityData storage sd = s._security[h.securityId];
             s._securityHolding[h.securityId][h.owner] = true;
+            s._securityHoldingIndex[h.securityId][sd.securityHoldingCount] = h.holdingId;
             s._holdingIndex[s._totalHoldingCount] = h.holdingId;
             OwnerData storage od = s._owner[h.owner];
             s._ownerHoldingIndex[h.owner][od.ownerHoldingCount] = h.holdingId;
@@ -172,6 +174,7 @@ contract SecurityToken is Context, ReentrancyGuard, AccessControlEnumerable {
             hd.allocated = h.allocated;
             hd.retired = false;
             od.ownerHoldingCount++;
+            sd.securityHoldingCount++;
             s._totalHoldingCount++;
         }
     }
@@ -199,7 +202,7 @@ contract SecurityToken is Context, ReentrancyGuard, AccessControlEnumerable {
         SecurityData storage sd = s._security[securityId];
         HoldingSummary[] memory list = new HoldingSummary[](sd.securityHoldingCount);
         for (uint64 i = 0; i < sd.securityHoldingCount; i++) {
-            uint128 holdingId = s._holdingIndex[i];
+            uint128 holdingId = s._securityHoldingIndex[securityId][i];
             HoldingData storage hd = s._holding[holdingId];
             HoldingSummary memory hs;
             hs.holding = hd;

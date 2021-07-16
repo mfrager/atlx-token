@@ -25,6 +25,9 @@ def ts_data(interval=None):
     print('TS Data: {}'.format(res))
     return res
 
+def uuid_urn(inp):
+    return uuid.UUID(bytes=inp.to_bytes(16, byteorder='big')).urn
+
 def main():
 
     token1 = SecurityToken.deploy({'from': accounts[0]}) # Circulating Stablecoin
@@ -55,21 +58,37 @@ def main():
     st1 = interface.ISecurityToken(dm1)
     st1.setupSecurityToken({'from': accounts[0]})
 
-    sid = uuid.uuid4().bytes
+    #sid = uuid.uuid4().bytes
+    sid = uuid.UUID('urn:uuid:f037ab78-9a00-4b86-a81d-707711367c50').bytes
     hid = uuid.uuid4().bytes
     eid = uuid.uuid4().bytes
     evt = [sid, hid, eid, 0, 100 * (10**18), accounts[0], ZERO_ADDRESS, True, ts_data()]
     print(st1.processHoldingEvent(evt, {'from': accounts[0]}).events)
 
+    print()
     print('List Securities')
     sl = st1.listSecurities({'from': accounts[0]})
-    print(sl)
+    for s in sl[0]:
+        print('Holdings For Security: {}'.format(s))
+        slh = st1.listSecurityHoldings(s, {'from': accounts[0]})
+        for h in slh:
+            print('Security ID: {}'.format(uuid_urn(h[0][0])))
+            print('Holding ID: {}'.format(uuid_urn(h[0][1])))
+            print('Create Event ID: {}'.format(uuid_urn(h[0][2])))
+            print('Global Holding Index: {}'.format(h[0][3]))
+            print('Owner Holding Index: {}'.format(h[0][4]))
+            print('Owner: {}'.format(h[0][5]))
+            print('Allocated: {}'.format(h[0][6]))
+            print('Retired: {}'.format(h[0][7]))
+            print('Balance: {}'.format(h[1] / (10 ** 18)))
+            print('Valid Owner: {}'.format(h[2]))
+            print('Valid Holding: {}'.format(h[3]))
 
-    print('List Owner')
-    print(st1.listOwners({'from': accounts[0]}))
+    #print('List Owner')
+    #print(st1.listOwners({'from': accounts[0]}))
 
-    print('List Owner Holdings')
-    print(st1.listOwnerHoldings(accounts[0], {'from': accounts[0]}))
+    #print('List Owner Holdings')
+    #print(st1.listOwnerHoldings(accounts[0], {'from': accounts[0]}))
     
 
     #print('Run Forever')
