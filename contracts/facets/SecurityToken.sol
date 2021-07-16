@@ -131,14 +131,14 @@ contract SecurityToken is Context, ReentrancyGuard, AccessControlEnumerable {
         }
     }
 
-    function _createSecurity(uint128 securityId, address owner) internal {
+    function _createSecurity(uint128 securityId, address admin) internal {
         DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
         SecurityData storage sd = s._security[securityId];
         if (sd.securityHoldingCount == 0) {
             // Need to create since there will always be at least one holding
             sd.securityId = securityId;
             sd.securityIdx = s._totalSecurityCount;
-            sd.allocator = owner;
+            sd.admin = admin;
             s._securityIndex[s._totalSecurityCount] = securityId;
             s._totalSecurityCount++;
         }
@@ -161,6 +161,7 @@ contract SecurityToken is Context, ReentrancyGuard, AccessControlEnumerable {
             s._securityHolding[h.securityId][h.owner] = true;
             s._holdingIndex[s._totalHoldingCount] = h.holdingId;
             OwnerData storage od = s._owner[h.owner];
+            s._ownerHoldingIndex[h.owner][od.ownerHoldingCount] = h.holdingId;
             HoldingData storage hd = s._holding[h.holdingId];
             hd.securityId = h.securityId;
             hd.holdingId = h.holdingId;
@@ -193,26 +194,36 @@ contract SecurityToken is Context, ReentrancyGuard, AccessControlEnumerable {
         return(list);
     }
 
-    function listSecurityHoldings(uint128 securityId) external view returns (HoldingData[] memory) {
+    function listSecurityHoldings(uint128 securityId) external view returns (HoldingSummary[] memory) {
         DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
         SecurityData storage sd = s._security[securityId];
-        HoldingData[] memory list = new HoldingData[](sd.securityHoldingCount);
+        HoldingSummary[] memory list = new HoldingSummary[](sd.securityHoldingCount);
         for (uint64 i = 0; i < sd.securityHoldingCount; i++) {
             uint128 holdingId = s._holdingIndex[i];
             HoldingData storage hd = s._holding[holdingId];
-            list[i] = hd;
+            HoldingSummary memory hs;
+            hs.holding = hd;
+            hs.balance = s._balances[securityId][hd.owner];
+            hs.validOwner = s._validOwner[hd.securityId][hd.owner];
+            hs.validHolding = s._validHolding[hd.holdingId];
+            list[i] = hs;
         }
         return(list);
     }
 
-    function listOwnerHoldings(address owner) external view returns (HoldingData[] memory) {
+    function listOwnerHoldings(address owner) external view returns (HoldingSummary[] memory) {
         DataSecurityToken storage s = DataSecurityTokenStorage.diamondStorage();
         OwnerData storage sd = s._owner[owner];
-        HoldingData[] memory list = new HoldingData[](sd.ownerHoldingCount);
+        HoldingSummary[] memory list = new HoldingSummary[](sd.ownerHoldingCount);
         for (uint64 i = 0; i < sd.ownerHoldingCount; i++) {
             uint128 holdingId = s._ownerHoldingIndex[owner][i];
             HoldingData storage hd = s._holding[holdingId];
-            list[i] = hd;
+            HoldingSummary memory hs;
+            hs.holding = hd;
+            hs.balance = s._balances[hd.securityId][hd.owner];
+            hs.validOwner = s._validOwner[hd.securityId][hd.owner];
+            hs.validHolding = s._validHolding[hd.holdingId];
+            list[i] = hs;
         }
         return(list);
     }

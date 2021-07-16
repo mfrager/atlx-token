@@ -34,6 +34,11 @@ def main():
     dmd1.diamondCut([
         [token1, 0, [
             token1.setupSecurityToken.signature,
+            token1.processHoldingEvent.signature,
+            token1.listSecurities.signature,
+            token1.listSecurityHoldings.signature,
+            token1.listOwners.signature,
+            token1.listOwnerHoldings.signature,
             #token1.transfer.signature,
             #token1.transferFrom.signature,
             #token1.approve.signature,
@@ -46,6 +51,26 @@ def main():
     print('Diamond 1 Owner: {}'.format(down1.owner({'from': accounts[0]})))
     dadm1 = interface.IDiamondAdmin(dm1)
     print('Diamond 1 Admin: {}'.format(dadm1.admin({'from': accounts[0]})))
+
+    st1 = interface.ISecurityToken(dm1)
+    st1.setupSecurityToken({'from': accounts[0]})
+
+    sid = uuid.uuid4().bytes
+    hid = uuid.uuid4().bytes
+    eid = uuid.uuid4().bytes
+    evt = [sid, hid, eid, 0, 100 * (10**18), accounts[0], ZERO_ADDRESS, True, ts_data()]
+    print(st1.processHoldingEvent(evt, {'from': accounts[0]}).events)
+
+    print('List Securities')
+    sl = st1.listSecurities({'from': accounts[0]})
+    print(sl)
+
+    print('List Owner')
+    print(st1.listOwners({'from': accounts[0]}))
+
+    print('List Owner Holdings')
+    print(st1.listOwnerHoldings(accounts[0], {'from': accounts[0]}))
+    
 
     #print('Run Forever')
     #while True:

@@ -38,11 +38,18 @@ struct HoldingData {
     // TimestampData restrictedUntilTs;
 }
 
+struct HoldingSummary {
+    HoldingData holding;
+    uint256 balance;
+    bool validOwner;
+    bool validHolding;
+}
+
 struct SecurityData {
     uint128 securityId;
     uint64 securityIdx;
     uint64 securityHoldingCount;
-    address allocator;
+    address admin;
 }
 
 struct OwnerData {

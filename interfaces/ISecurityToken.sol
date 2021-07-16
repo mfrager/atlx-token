@@ -37,6 +37,13 @@ struct HoldingData {
     // TimestampData restrictedUntilTs;
 }
 
+struct HoldingSummary {
+    HoldingData holding;
+    uint256 balance;
+    bool validOwner;
+    bool validHolding;
+}
+
 struct Security {
     uint128 securityId;
 }
@@ -63,12 +70,12 @@ interface ISecurityToken {
     function processHoldingEvent(HoldingEvent calldata h) external returns (bool);
     function listSecurities() external view returns (Security[] memory);
     function listOwners() external view returns (SecurityOwner[] memory);
-    function listSecurityHoldings(uint128 securityId) external view returns (HoldingData[] memory);
-    function listOwnerHoldings(address owner) external view returns (HoldingData[] memory);
+    function listSecurityHoldings(uint128 securityId) external view returns (HoldingSummary[] memory);
+    function listOwnerHoldings(address owner) external view returns (HoldingSummary[] memory);
     function decimals() external view virtual returns (uint8);
     function totalSupply(uint128 securityId) external view returns (uint256);
     function balanceOf(uint128 securityId, address account) external view virtual returns (uint256);
 
-    event Transfer(uint128 securityId, address indexed from, address indexed to, uint256 value);
+    event Transfer(uint128 indexed securityId, address indexed from, address indexed to, uint256 value);
     event BalanceLog(uint128 indexed securityId, address indexed owner, uint256 balanceNew, uint256 balancePrev, uint ts);
 }
