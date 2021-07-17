@@ -38,6 +38,7 @@ def main():
         [token1, 0, [
             token1.setupSecurityToken.signature,
             token1.processHoldingEvent.signature,
+            token1.enableSecurity.signature,
             token1.listSecurities.signature,
             token1.listSecurityHoldings.signature,
             token1.listOwners.signature,
@@ -62,7 +63,7 @@ def main():
     sid = uuid.UUID('urn:uuid:f037ab78-9a00-4b86-a81d-707711367c50').bytes
     hid = uuid.uuid4().bytes
     eid = uuid.uuid4().bytes
-    evt = [sid, hid, eid, 0, 100 * (10**18), accounts[0], ZERO_ADDRESS, True, ts_data()]
+    evt = [sid, hid, eid, 0, accounts[0], True, [ZERO_ADDRESS, 100 * (10**18), 0, ZERO_ADDRESS], ts_data()]
     print(st1.processHoldingEvent(evt, {'from': accounts[0]}).events)
 
     print()

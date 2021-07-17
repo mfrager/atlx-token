@@ -10,15 +10,21 @@ struct TimestampData {
     bytes8 day;
 }
 
+struct TransferData {
+    address recipient;
+    uint256 amount;
+    uint256 payment;
+    address paymentToken;
+}
+
 struct HoldingEvent {
     uint128 securityId;
     uint128 holdingId;
     uint128 eventId;
     uint8 eventType;
-    uint256 amount;
     address owner;
-    address recipient;
     bool allocated;
+    TransferData transfer;
     TimestampData eventTs;
 }
 
@@ -63,7 +69,7 @@ interface ISecurityToken {
     function enableOwner(uint128 securityId, address owner) external returns (bool);
     function disableOwner(uint128 securityId, address owner) external returns (bool);
     function isValidOwner(uint128 securityId, address owner) external returns (bool);
-    function enableSecurity(uint128 securityId) external returns (bool);
+    function enableSecurity(uint128 securityId, address token) external returns (bool);
     function disableSecurity(uint128 securityId) external returns (bool);
     function enableHolding(uint128 holdingId) external returns (bool);
     function disableHolding(uint128 holdingId) external returns (bool);
@@ -74,7 +80,7 @@ interface ISecurityToken {
     function listOwnerHoldings(address owner) external view returns (HoldingSummary[] memory);
     function decimals() external view virtual returns (uint8);
     function totalSupply(uint128 securityId) external view returns (uint256);
-    function balanceOf(uint128 securityId, address account) external view virtual returns (uint256);
+    function balanceOf(uint128 securityId, address account) external returns (uint256);
 
     event Transfer(uint128 indexed securityId, address indexed from, address indexed to, uint256 value);
     event BalanceLog(uint128 indexed securityId, address indexed owner, uint256 balanceNew, uint256 balancePrev, uint ts);

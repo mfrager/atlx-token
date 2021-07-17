@@ -11,15 +11,21 @@ struct TimestampData {
     bytes8 day;
 }
 
+struct TransferData {
+    address recipient;
+    uint256 amount;
+    uint256 payment;
+    address paymentToken;
+}
+
 struct HoldingEvent {
     uint128 securityId;
     uint128 holdingId;
     uint128 eventId;
     uint8 eventType;
-    uint256 amount;
     address owner;
-    address recipient;
     bool allocated;
+    TransferData transfer;
     TimestampData eventTs;
 }
 
@@ -50,6 +56,8 @@ struct SecurityData {
     uint64 securityIdx;
     uint64 securityHoldingCount;
     address admin;
+    bool hasExternalToken;
+    address externalToken;
 }
 
 struct OwnerData {
