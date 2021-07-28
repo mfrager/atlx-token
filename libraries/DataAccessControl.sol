@@ -17,7 +17,7 @@ struct DataAccessControl {
 }
 
 library DataAccessControlStorage {
-    bytes32 constant ACCESSV1_POSITION = keccak256("net.atellix.token.access.v1");
+    bytes32 constant ACCESSV1_POSITION = keccak256("net.atellix.access.v1");
     function diamondStorage() internal pure returns (DataAccessControl storage ds) {
         bytes32 position = ACCESSV1_POSITION;
         assembly {

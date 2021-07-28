@@ -103,7 +103,7 @@ struct DataSecurityToken {
 }
 
 library DataSecurityTokenStorage {
-    bytes32 constant SECTOKENV1_POSITION = keccak256("net.atellix.token.data.security.v1");
+    bytes32 constant SECTOKENV1_POSITION = keccak256("net.atellix.security_token.v1");
     function diamondStorage() internal pure returns (DataSecurityToken storage ds) {
         bytes32 position = SECTOKENV1_POSITION;
         assembly {

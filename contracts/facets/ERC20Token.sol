@@ -143,7 +143,7 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
     }
 
     function _action_swap(ActionSwap calldata act) internal {
-        bool ok = ITokenSwap(act.swapToken).swapTokens(act.swapPairId, act.fromAccount, act.swapAmount);
+        bool ok = ITokenSwap(act.swapToken).swapTokens(act.swapPairId, act.fromAccount, act.fromAccount, act.swapAmount);
         require(ok == true, "SWAP_FAILED");
     }
 
@@ -335,18 +335,33 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
         return(uint8(EventResult.ABORT));
     }
 
-    function mint(address account, uint256 amount) external nonReentrant onlyRole(ERC20_TOKEN_ADMIN_ROLE) returns (bool) {
+    function mint(address account, uint256 amount) external nonReentrant returns (bool) {
+        address sender = _msgSender();
+        bool valid = false;
+        DataERC20 storage s = DataERC20Storage.diamondStorage();
+        if (sender == s._swapper) {
+            valid = true;
+        } else if (hasRole(ERC20_TOKEN_ADMIN_ROLE, sender)) {
+            valid = true;
+        }
+        require(valid, "ACCESS_DENIED");
         _mint(account, amount);
         return(true);
     }
 
-    function burn(address account, uint256 amount) external nonReentrant onlyRole(ERC20_TOKEN_ADMIN_ROLE) returns (bool) {
+    function burn(address account, uint256 amount) external nonReentrant returns (bool) {
+        address sender = _msgSender();
+        bool valid = false;
+        DataERC20 storage s = DataERC20Storage.diamondStorage();
+        if (sender == s._swapper) {
+            valid = true;
+        } else if (hasRole(ERC20_TOKEN_ADMIN_ROLE, sender)) {
+            valid = true;
+        } else (sender == account) {
+            valid = true;
+        }
+        require(valid, "ACCESS_DENIED");
         _burn(account, amount);
-        return(true);
-    }
-
-    function adminTransfer(address fromAccount, address toAccount, uint256 amount) external nonReentrant onlyRole(ERC20_TOKEN_ADMIN_ROLE) returns (bool) {
-        _transfer(fromAccount, toAccount, amount);
         return(true);
     }
 

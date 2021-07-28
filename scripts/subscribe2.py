@@ -34,6 +34,9 @@ def main():
     # accounts[4] - Circulating Stablecoin Admin
     # accounts[5] - Internal Stablecoin Admin
 
+    for i in range(6):
+        print('Account {}: {}'.format(i, accounts[i]))
+
     token1 = ERC20Token.deploy({'from': accounts[0]}) # Circulating Stablecoin
     dcf1 = DiamondCut.deploy({'from': accounts[0]})
     dm1 = Diamond.deploy(dcf1, [accounts[0], accounts[4]], {'from': accounts[0]})
@@ -68,7 +71,6 @@ def main():
             # Admin tools
             token2.mint.signature,
             token2.burn.signature,
-            token2.adminTransfer.signature,
             token2.enableMerchant.signature,
             token2.disableMerchant.signature,
             token2.isValidMerchant.signature,
@@ -202,7 +204,7 @@ def main():
         evid3 = uuid.uuid4().bytes
         print(erc2.processSubscription([sbid, evid3, 1, 50, ts_data(relativedelta(months=2))], True, {'from': accounts[1]}).events)
 
-        print(erc2.adminTransfer(accounts[3], accounts[2], 200, {'from': accounts[4]}).events)
+        #print(erc2.adminTransfer(accounts[3], accounts[2], 200, {'from': accounts[4]}).events)
 
         print('Balance')
         print('User VUSD: {}'.format(erc1.balanceOf(accounts[3], {'from': accounts[3]})))

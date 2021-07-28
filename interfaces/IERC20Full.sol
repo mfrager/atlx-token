@@ -15,7 +15,6 @@ interface IERC20Full {
     function setupERC20Token(string memory name_, string memory symbol_, uint256 amount_, address swapper_) external;
     function mint(address account, uint256 amount) external returns (bool);
     function burn(address account, uint256 amount) external returns (bool);
-    function adminTransfer(address from, address to, uint256 amount) external returns (bool);
     function enableMerchant(address merchant) external returns (bool);
     function disableMerchant(address merchant) external returns (bool);
 

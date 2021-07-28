@@ -6,6 +6,7 @@ import "../../libraries/ReentrancyGuard.sol";
 import "../../libraries/AccessControlEnumerable.sol";
 import "../../interfaces/IERC20.sol";
 import "../../interfaces/IERC20Merchant.sol";
+import "../../interfaces/IAggregatorInterface.sol";
 import "../../utils/Context.sol";
 
 contract TokenSwap is Context, ReentrancyGuard, AccessControlEnumerable {
@@ -15,7 +16,7 @@ contract TokenSwap is Context, ReentrancyGuard, AccessControlEnumerable {
     bytes32 public constant TOKEN_WITHDRAW_ROLE = keccak256("TOKEN_WITHDRAW_ROLE");
 
     event RegisterToken(address indexed token, string label);
-    event RegisterSwapPair(uint32 indexed pair, address indexed fromToken, address indexed toToken, uint256 fromRate, uint256 toRate);
+    event RegisterSwapPair(uint32 indexed pair, address indexed fromToken, address indexed toToken);
     event SwapTokens(address indexed fromAccount, uint32 pair, uint256 fromAmount, uint256 toAmount);
 
     function setupSwap(address admin) external nonReentrant returns (bool) {
@@ -41,19 +42,23 @@ contract TokenSwap is Context, ReentrancyGuard, AccessControlEnumerable {
         return (true);
     }
 
-    function registerSwapPair(uint32 pairId, address fromToken, address toToken, uint256 fromRate, uint256 toRate, bool merchant) external nonReentrant onlyRole(TOKEN_SWAP_ADMIN_ROLE) returns (bool) {
+    function registerSwapPairs(SwapPair[] calldata pairs) external nonReentrant onlyRole(TOKEN_SWAP_ADMIN_ROLE) returns (bool) {
         DataTokenSwap storage s = DataTokenSwapStorage.diamondStorage();
-        SwapPair storage sp = s.swapPairs[pairId];
-        // require(sp.fromToken == address(0), "DUPLICATE_SWAP_PAIR");
-        require(toToken != fromToken, "INVALID_SWAP_SAME_TOKEN");
-        require(s.tokenActive[fromToken] == true, "INVALID_FROM_TOKEN");
-        require(s.tokenActive[toToken] == true, "INVALID_TO_TOKEN");
-        sp.fromToken = fromToken;
-        sp.toToken = toToken;
-        sp.fromRate = fromRate;
-        sp.toRate = toRate;
-        sp.merchant = merchant;
-        emit RegisterSwapPair(pairId, fromToken, toToken, fromRate, toRate);
+        for (uint256 spIndex; spIndex < pairs.length; spIndex++) {
+            require(sp.fromToken == address(0), "DUPLICATE_SWAP_PAIR");
+            SwapPair memory inp = pairs[spIndex];
+            SwapPair storage sp = s.swapPairs[inp.pairId];
+            require(inp.toToken != inp.fromToken, "INVALID_SWAP_SAME_TOKEN");
+            require(s.tokenActive[inp.fromToken] == true, "INVALID_FROM_TOKEN");
+            require(s.tokenActive[inp.toToken] == true, "INVALID_TO_TOKEN");
+            sp.pairId = inp.paidId;
+            sp.fromToken = inp.fromToken;
+            sp.toToken = inp.toToken;
+            sp.fromRate = inp.fromRate;
+            sp.toRate = inp.toRate;
+            sp.oracleToken = inp.oracleToken;
+            sp.merchant = inp.merchant;
+            emit RegisterSwapPair(pairId, fromToken, toToken, fromRate, toRate);
         return (true);
     }
 
@@ -67,7 +72,7 @@ contract TokenSwap is Context, ReentrancyGuard, AccessControlEnumerable {
     }
 
     // withdrawTokens - Only for SwapToken owner. Other accounts own the other tokens themselves.
-    function withdrawTokens(address forToken, address toAccount, uint256 withdrawAmount) external nonReentrant onlyRole(TOKEN_WITHDRAW_ROLE) returns (bool) {
+    function withdrawTokens(address forToken, address payable toAccount, uint256 withdrawAmount) external nonReentrant onlyRole(TOKEN_WITHDRAW_ROLE) returns (bool) {
         DataTokenSwap storage s = DataTokenSwapStorage.diamondStorage();
         require(s.tokenActive[forToken] == true, "INVALID_TO_TOKEN");
         require(s.tokenBalances[forToken] >= withdrawAmount, "NOT_ENOUGH_TOKENS_TO_WITHDRAW");
@@ -82,26 +87,35 @@ contract TokenSwap is Context, ReentrancyGuard, AccessControlEnumerable {
         return (true);
     }
 
-    function buyTokens(uint32 pairId) external payable nonReentrant returns (bool) {
+    /* function buyTokens(uint32 pairId) external payable nonReentrant returns (bool) {
         DataTokenSwap storage s = DataTokenSwapStorage.diamondStorage();
         SwapPair storage sp = s.swapPairs[pairId];
         require(sp.fromToken == address(1), "INVALID_BUY_TOKEN");
         return _swapTokens(pairId, _msgSender(), msg.value);
-    }
+    } */
 
-    function swapTokens(uint32 pairId, address fromAccount, uint256 fromAmount) external nonReentrant returns (bool) {
-        return _swapTokens(pairId, fromAccount, fromAmount);
-    }
-
-    function _swapTokens(uint32 pairId, address fromAccount, uint256 tokensIn) internal returns (bool) {
+    function swapTokens(uint32 pairId, address fromAccount, address payable toAccount, uint256 tokensIn) external payable nonReentrant returns (bool) {
         DataTokenSwap storage s = DataTokenSwapStorage.diamondStorage();
         SwapPair storage sp = s.swapPairs[pairId];
         require(sp.fromToken != address(0), "INVALID_SWAP_PAIR");
         require(sp.toRate != 0, "SWAP_DISABLED");
+        if (sp.fromToken == address(1)) { // buy tokens with Ethereum
+            require(tokensIn == 0, "INVALID_PARAMETER");
+            require(fromAccount == _msgSender(), "FROM_NOT_SENDER");
+            tokensIn = msg.value;
+        }
         // Calculate swap rate
-        uint256 tokensOut = tokensIn * sp.fromRate;
-        tokensOut = tokensOut / sp.toRate;
-        require(s.tokenBalances[sp.toToken] >= tokensOut, "NOT_ENOUGH_TOKENS_TO_SWAP");
+        uint256 tokensOut;
+        if (sp.oracleToken != address(0)) {
+            uint256 quote = IAggregatorInterface(sp.oracleToken).latestAnswer();
+        } else {
+            uint256 tokensOut = tokensIn * sp.fromRate;
+            tokensOut = tokensOut / sp.toRate;
+        }
+        // TODO: lockbox adjustment
+        if (!sp.mint) {
+            require(s.tokenBalances[sp.toToken] >= tokensOut, "NOT_ENOUGH_TOKENS_TO_SWAP");
+        }
         if (sp.merchant) {
             bool isMerchant = IERC20Merchant(sp.fromToken).isValidMerchant(fromAccount);
             require(isMerchant, "MERCHANT_ONLY_SWAP");
@@ -110,10 +124,25 @@ contract TokenSwap is Context, ReentrancyGuard, AccessControlEnumerable {
             bool ok1 = IERC20(sp.fromToken).transferFrom(fromAccount, address(this), tokensIn);
             require(ok1 == true, "ERC20_TRANSER_IN_FAILED");
         }
-        s.tokenBalances[sp.fromToken] = s.tokenBalances[sp.fromToken] + tokensIn;
-        s.tokenBalances[sp.toToken] = s.tokenBalances[sp.toToken] - tokensOut;
-        bool ok2 = IERC20(sp.toToken).transfer(fromAccount, tokensOut);
-        require(ok2 == true, "ERC20_TRANSER_OUT_FAILED");
+        if (sp.burn) {
+            bool ok2 = IERC20(sp.fromToken).burn(fromAccount, tokensOut);
+            require(ok2 == true, "ERC20_BURN_FAILED");
+        } else {
+            s.tokenBalances[sp.fromToken] = s.tokenBalances[sp.fromToken] + tokensIn;
+        }
+        if (sp.mint) {
+            bool ok3 = IERC20(sp.toToken).mint(toAccount, tokensOut);
+            require(ok3 == true, "ERC20_MINT_FAILED");
+        } else {
+            s.tokenBalances[sp.toToken] = s.tokenBalances[sp.toToken] - tokensOut;
+        }
+        if (sp.toToken == address(1)) {
+            (bool sent, bytes memory data) = toAccount.call{value: withdrawAmount}("");
+            require(sent, "ETHEREUM_SWAP_FAILED");
+        } else if (!sp.mint) {
+            bool ok4 = IERC20(sp.toToken).transfer(toAccount, tokensOut);
+            require(ok4 == true, "ERC20_TRANSFER_FAILED");
+        }
         emit SwapTokens(fromAccount, pairId, tokensIn, tokensOut);
         return (true);
     }
