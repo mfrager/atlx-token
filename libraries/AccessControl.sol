@@ -21,6 +21,11 @@ interface IAccessControl {
     function renounceRole(bytes32 role, address account) external;
 }
 
+interface IAccessControlBan {
+    function ban(address account) external;
+    function unban(address account) external;
+}
+
 /**
  * @dev Contract module that allows children to implement role-based access
  * control mechanisms. This is a lightweight version that doesn't allow enumerating role
@@ -69,6 +74,8 @@ abstract contract AccessControl is Context, IAccessControl {
     // mapping(bytes32 => RoleData) private _roles;
 
     bytes32 public constant DEFAULT_ADMIN_ROLE = 0x00;
+    bytes32 public constant BAN_ADMIN_ROLE = keccak256("BAN_ADMIN_ROLE");
+    bytes32 public constant PREVENT_BAN_ROLE = keccak256("PREVENT_BAN_ROLE");
 
     /**
      * @dev Emitted when `newAdminRole` is set as ``role``'s admin role, replacing `previousAdminRole`
@@ -96,6 +103,9 @@ abstract contract AccessControl is Context, IAccessControl {
      *   - if using `renounceRole`, it is the role bearer (i.e. `account`)
      */
     event RoleRevoked(bytes32 indexed role, address indexed account, address indexed sender);
+
+    event Ban(address account);
+    event Unban(address account);
 
     /**
      * @dev Modifier that checks that an account has a specific role. Reverts
@@ -252,5 +262,42 @@ abstract contract AccessControl is Context, IAccessControl {
             ac._roles[role].members[account] = false;
             emit RoleRevoked(role, account, _msgSender());
         }
+    }
+
+    function ban(address account) public virtual onlyRole(BAN_ADMIN_ROLE) {
+        _ban(account);
+    }
+
+    function unban(address account) public virtual onlyRole(BAN_ADMIN_ROLE) {
+        _unban(account);
+    }
+
+    function notBanned(address account) internal {
+        sender = _msgSender();
+        DataAccessControl storage ac = DataAccessControlStorage.diamondStorage();
+        require(!ac._ban.contains(sender), "BANNED");
+    }
+
+    function _ban(address account) internal returns (bool) {
+        DataAccessControl storage ac = DataAccessControlStorage.diamondStorage();
+        require(!hasRole(PREVENT_BAN_ROLE, account), "INVALID_BAN");
+        require(!ac._ban.contains(account), "ALREADY_BANNED");
+        ac._ban.add(account);
+        emit Ban(account);
+    }
+
+    function _unban(address account) internal returns (bool) {
+        DataAccessControl storage ac = DataAccessControlStorage.diamondStorage();
+        require(ac._ban.contains(account), "NOT_BANNED");
+        ac._ban.remove(account);
+        emit Unban(account);
+    }
+
+    function _setupBans(address admin) internal {
+        _setRoleAdmin(BAN_ADMIN_ROLE, DEFAULT_ADMIN_ROLE);
+        _setRoleAdmin(PREVENT_BAN_ROLE, DEFAULT_ADMIN_ROLE);
+        _setupRole(BAN_ADMIN_ROLE, admin);
+        _setupRole(PREVENT_BAN_ROLE, admin);
+        // Ban list
     }
 }

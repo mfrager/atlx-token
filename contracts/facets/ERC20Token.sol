@@ -66,6 +66,8 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
         s._delegateCount[sender] = 1;
         emit SubscriptionDelegateGranted(sender, address(1));
         _setupRole(DEFAULT_ADMIN_ROLE, sender);
+        _setupBans(sender);
+        _setRoleAdmin(MERCHANT_ADMIN_ROLE, DEFAULT_ADMIN_ROLE);
         _setRoleAdmin(ERC20_TOKEN_ADMIN_ROLE, DEFAULT_ADMIN_ROLE);
         _setRoleAdmin(MERCHANT_ADMIN_ROLE, DEFAULT_ADMIN_ROLE);
         _setRoleAdmin(SUBSCRIPTION_ADMIN_ROLE, DEFAULT_ADMIN_ROLE);
@@ -119,6 +121,7 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
     }
 
     function actionBatch(address account, uint8[] calldata actionList, ActionSwap[] calldata swapList, ActionSubscribe[] calldata subscribeList) external nonReentrant returns (bool) {
+        notBanned();
         address sender = _msgSender();
         DataERC20 storage s = DataERC20Storage.diamondStorage();
         if (s._subscriptionAdmin[sender]) {
@@ -161,6 +164,7 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
     }
 
     function beginSubscription(uint128 subscrId, address fromAccount, address toAccount, bool pausable, SubscriptionSpec calldata spec) external nonReentrant returns (bool) {
+        notBanned();
         return _beginSubscription(subscrId, fromAccount, toAccount, pausable, spec);
     }
 
@@ -424,6 +428,7 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
      * - the caller must have a balance of at least `amount`.
      */
     function transfer(address recipient, uint256 amount) public virtual override returns (bool) {
+        notBanned();
         _transfer(_msgSender(), recipient, amount);
         return true;
     }
@@ -466,6 +471,7 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
         address recipient,
         uint256 amount
     ) public virtual override returns (bool) {
+        notBanned();
         _transfer(sender, recipient, amount);
 
         DataERC20 storage s = DataERC20Storage.diamondStorage();
@@ -496,6 +502,7 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
      * - `spender` cannot be the zero address.
      */
     function increaseAllowance(address spender, uint256 addedValue) public virtual returns (bool) {
+        notBanned();
         DataERC20 storage s = DataERC20Storage.diamondStorage();
         _approve(_msgSender(), spender, s._allowances[_msgSender()][spender] + addedValue);
         return true;
@@ -516,6 +523,7 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
      * `subtractedValue`.
      */
     function decreaseAllowance(address spender, uint256 subtractedValue) public virtual returns (bool) {
+        notBanned();
         DataERC20 storage s = DataERC20Storage.diamondStorage();
         uint256 currentAllowance = s._allowances[_msgSender()][spender];
         require(currentAllowance >= subtractedValue, "ERC20_DECREASED_ALLOWANCE_BELOW_ZERO");

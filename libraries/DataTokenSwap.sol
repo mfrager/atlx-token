@@ -5,10 +5,12 @@ struct SwapPair {
     uint32 pairId;
     address fromToken;
     address toToken;
-    uint256 fromRate;
-    uint256 toRate;
+    uint256 swapRate;
+    uint256 baseRate;
+    uint256 minimumIn;
     address oracleToken;
     uint8 oracleDecimals;
+    bool oracleInverse; // Inverse the oracle price
     bool merchant; // Merchant-only swap
     bool mint; // Mint on swap
     bool burn; // Burn on swap

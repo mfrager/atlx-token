@@ -14,6 +14,7 @@ struct DataAccessControl {
     // address _owner; // for Ownable
     mapping(bytes32 => RoleData) _roles;
     mapping(bytes32 => EnumerableSet.AddressSet) _roleMembers;
+    EnumerableSet.AddressSet _ban;
 }
 
 library DataAccessControlStorage {
