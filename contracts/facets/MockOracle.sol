@@ -10,14 +10,10 @@ contract MockOracle is Context, ReentrancyGuard, AccessControlEnumerable {
 
     bytes32 public constant TOKEN_ORACLE_ADMIN_ROLE = keccak256("TOKEN_ORACLE_ADMIN_ROLE");
 
-    //event RegisterToken(address indexed token, string label);
-    //event RegisterSwapPair(uint32 indexed pair, address indexed fromToken, address indexed toToken, uint256 fromRate, uint256 toRate);
-    //event SwapTokens(address indexed fromAccount, uint32 pair, uint256 fromAmount, uint256 toAmount);
-
     function setupOracle(address admin) external nonReentrant returns (bool) {
-        DataTokenSwap storage s = DataTokenSwapStorage.diamondStorage();
-        require(!s.setupDone, "SETUP_ALREADY_DONE");
-        s.setupDone = true;
+        DataMockOracle storage s = DataMockOracleStorage.diamondStorage();
+        require(!s._setupDone, "SETUP_ALREADY_DONE");
+        s._setupDone = true;
         _setupRole(DEFAULT_ADMIN_ROLE, admin);
         _setRoleAdmin(TOKEN_ORACLE_ADMIN_ROLE, DEFAULT_ADMIN_ROLE);
         _setupRole(TOKEN_ORACLE_ADMIN_ROLE, admin);

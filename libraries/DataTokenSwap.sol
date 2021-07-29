@@ -8,6 +8,7 @@ struct SwapPair {
     uint256 swapRate;
     uint256 baseRate;
     uint256 minimumIn;
+    uint256 feeRate;
     address oracleToken;
     uint8 oracleDecimals;
     bool oracleInverse; // Inverse the oracle price
@@ -21,6 +22,7 @@ struct DataTokenSwap {
     mapping(address => uint256) tokenBalances;
     mapping(bytes32 => address) tokenLookup;
     mapping(uint32 => SwapPair) swapPairs;
+    address feesAccount;
     bool setupDone;
 }
 

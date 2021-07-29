@@ -76,13 +76,12 @@ contract DiamondCut is IDiamondCut, IDiamondLoupe, IERC173 {
         facetAddress_ = ds.selectorToFacetAndPosition[_functionSelector].facetAddress;
     }
 
+    // TODO: Add/remove interface
     // This implements ERC-165. (Implemented elsewhere)
     /* function supportsInterface(bytes4 _interfaceId) external override view returns (bool) {
         LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
         return ds.supportedInterfaces[_interfaceId];
     } */
-
-    // TODO: Add/remove interface
 
     // Ownership Facet implementing ERC-173.
     function transferOwnership(address _newOwner) external override {

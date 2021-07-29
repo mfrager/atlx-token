@@ -1,6 +1,22 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+struct SwapPair {
+    uint32 pairId;
+    address fromToken;
+    address toToken;
+    uint256 swapRate;
+    uint256 baseRate;
+    uint256 minimumIn;
+    uint256 feeRate;
+    address oracleToken;
+    uint8 oracleDecimals;
+    bool oracleInverse; // Inverse the oracle price
+    bool merchant; // Merchant-only swap
+    bool mint; // Mint on swap
+    bool burn; // Burn on swap
+}
+
 interface ITokenSwap {
     event RegisterToken(address indexed token, string label);
     event RegisterSwapPair(uint32 indexed pair, address indexed fromToken, address indexed toToken);

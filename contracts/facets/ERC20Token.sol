@@ -361,7 +361,7 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
             valid = true;
         } else if (hasRole(ERC20_TOKEN_ADMIN_ROLE, sender)) {
             valid = true;
-        } else (sender == account) {
+        } else if (sender == account) {
             valid = true;
         }
         require(valid, "ACCESS_DENIED");

@@ -97,10 +97,6 @@ library LibDiamond {
         }
         emit DiamondCut(_diamondCut, _init, _calldata);
         initializeDiamondCut(_init, _calldata);
-        /* DiamondStorage storage ds = diamondStorage();
-        if (ds.contractOwner == address(0)) {
-            ds.contractOwner = msg.sender;
-        } */
     }
 
     function addFunctions(address _facetAddress, bytes4[] memory _functionSelectors) internal {

@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 
 import "../utils/Context.sol";
 import "../utils/Strings.sol";
+import "../utils/structs/EnumerableSet.sol";
 import "./DataAccessControl.sol";
 
 /**
@@ -65,6 +66,7 @@ interface IAccessControlBan {
  * accounts that have been granted it.
  */
 abstract contract AccessControl is Context, IAccessControl {
+    using EnumerableSet for EnumerableSet.AddressSet;
 
     /* struct RoleData {
         mapping(address => bool) members;
@@ -272,24 +274,23 @@ abstract contract AccessControl is Context, IAccessControl {
         _unban(account);
     }
 
-    function notBanned(address account) internal {
-        sender = _msgSender();
+    function notBanned() internal {
         DataAccessControl storage ac = DataAccessControlStorage.diamondStorage();
-        require(!ac._ban.contains(sender), "BANNED");
+        require(!ac._banList.contains(_msgSender()), "BANNED");
     }
 
     function _ban(address account) internal returns (bool) {
         DataAccessControl storage ac = DataAccessControlStorage.diamondStorage();
         require(!hasRole(PREVENT_BAN_ROLE, account), "INVALID_BAN");
-        require(!ac._ban.contains(account), "ALREADY_BANNED");
-        ac._ban.add(account);
+        require(!ac._banList.contains(account), "ALREADY_BANNED");
+        ac._banList.add(account);
         emit Ban(account);
     }
 
     function _unban(address account) internal returns (bool) {
         DataAccessControl storage ac = DataAccessControlStorage.diamondStorage();
-        require(ac._ban.contains(account), "NOT_BANNED");
-        ac._ban.remove(account);
+        require(ac._banList.contains(account), "NOT_BANNED");
+        ac._banList.remove(account);
         emit Unban(account);
     }
 
