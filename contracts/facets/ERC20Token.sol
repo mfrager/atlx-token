@@ -53,13 +53,13 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
     event SubscriptionDelegateGranted(address indexed admin, address delegate);
     event SubscriptionDelegateRevoked(address indexed admin, address delegate);
 
-    function setupERC20Token(string memory name_, string memory symbol_, uint256 amount_, address swapper_) external nonReentrant {
+    function setupERC20Token(string memory name, string memory symbol, uint256 amount, address swapper) external nonReentrant {
         DataERC20 storage s = DataERC20Storage.diamondStorage();
         require(!s._setupDone, "SETUP_ALREADY_DONE");
         s._setupDone = true;
-        s._name = name_;
-        s._symbol = symbol_;
-        s._swapper = swapper_;
+        s._name = name;
+        s._symbol = symbol;
+        s._swapper = swapper;
         address sender = _msgSender();
         s._subscriptionAdmin[sender] = true;
         s._subscriptionDelegate[sender][address(1)] = true;
@@ -74,7 +74,9 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
         _setupRole(ERC20_TOKEN_ADMIN_ROLE, sender);
         _setupRole(MERCHANT_ADMIN_ROLE, sender);
         _setupRole(SUBSCRIPTION_ADMIN_ROLE, sender);
-        _mint(_msgSender(), amount_);
+        if (amount > 0) {
+            _mint(_msgSender(), amount);
+        }
     }
 
     function enableMerchant(address merchant) external nonReentrant onlyRole(MERCHANT_ADMIN_ROLE) returns (bool) {
@@ -146,7 +148,7 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
     }
 
     function _action_swap(ActionSwap calldata act) internal {
-        bool ok = ITokenSwap(act.swapToken).swapTokens(act.swapPairId, act.fromAccount, act.fromAccount, act.swapAmount);
+        bool ok = ITokenSwap(act.swapToken).swapTokens(act.swapPairId, act.fromAccount, payable(act.fromAccount), act.swapAmount);
         require(ok == true, "SWAP_FAILED");
     }
 
@@ -339,7 +341,7 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
         return(uint8(EventResult.ABORT));
     }
 
-    function mint(address account, uint256 amount) external nonReentrant returns (bool) {
+    function mint(address account, uint256 amount) external nonReentrantZone2 returns (bool) {
         address sender = _msgSender();
         bool valid = false;
         DataERC20 storage s = DataERC20Storage.diamondStorage();
@@ -353,7 +355,7 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
         return(true);
     }
 
-    function burn(address account, uint256 amount) external nonReentrant returns (bool) {
+    function burn(address account, uint256 amount) external nonReentrantZone2 returns (bool) {
         address sender = _msgSender();
         bool valid = false;
         DataERC20 storage s = DataERC20Storage.diamondStorage();
@@ -427,7 +429,7 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
      * - `recipient` cannot be the zero address.
      * - the caller must have a balance of at least `amount`.
      */
-    function transfer(address recipient, uint256 amount) public virtual override returns (bool) {
+    function transfer(address recipient, uint256 amount) public virtual override nonReentrantZone2 returns (bool) {
         notBanned();
         _transfer(_msgSender(), recipient, amount);
         return true;
@@ -466,11 +468,7 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
      * - the caller must have allowance for ``sender``'s tokens of at least
      * `amount`.
      */
-    function transferFrom(
-        address sender,
-        address recipient,
-        uint256 amount
-    ) public virtual override returns (bool) {
+    function transferFrom(address sender, address recipient, uint256 amount) public virtual override nonReentrantZone2 returns (bool) {
         notBanned();
         _transfer(sender, recipient, amount);
 
@@ -548,11 +546,7 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
      * - `recipient` cannot be the zero address.
      * - `sender` must have a balance of at least `amount`.
      */
-    function _transfer(
-        address sender,
-        address recipient,
-        uint256 amount
-    ) internal virtual {
+    function _transfer(address sender, address recipient, uint256 amount) internal virtual {
         require(sender != address(0), "ERC20_TRANSFER_FROM_ZERO_ADDRESS");
         require(recipient != address(0), "ERC20_TRANSFER_TO_ZERO_ADDRESS");
         //require(recipient != sender, "ERC20: transfer to same address as sender");
@@ -655,11 +649,7 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
      * - `owner` cannot be the zero address.
      * - `spender` cannot be the zero address.
      */
-    function _approve(
-        address owner,
-        address spender,
-        uint256 amount
-    ) internal virtual {
+    function _approve(address owner, address spender, uint256 amount) internal virtual {
         require(owner != address(0), "ERC20_APPROVE_FROM_ZERO_ADDRESS");
         require(spender != address(0), "ERC20_TO_FROM_ZERO_ADDRESS");
         DataERC20 storage s = DataERC20Storage.diamondStorage();

@@ -34,9 +34,11 @@ abstract contract ReentrancyGuard {
     uint256 private constant _ENTERED = 2;
 
     uint256 private _status;
+    uint256 private _statusZone2;
 
     constructor() {
         _status = _NOT_ENTERED;
+        _statusZone2 = _NOT_ENTERED;
     }
 
     /**
@@ -48,7 +50,7 @@ abstract contract ReentrancyGuard {
      */
     modifier nonReentrant() {
         // On the first call to nonReentrant, _notEntered will be true
-        require(_status != _ENTERED, "ReentrancyGuard: reentrant call");
+        require(_status != _ENTERED, "REENTRANT_CALL_ZONE1");
 
         // Any calls to nonReentrant after this point will fail
         _status = _ENTERED;
@@ -58,5 +60,20 @@ abstract contract ReentrancyGuard {
         // By storing the original value once again, a refund is triggered (see
         // https://eips.ethereum.org/EIPS/eip-2200)
         _status = _NOT_ENTERED;
+    }
+
+    // Zone2 to enable one callback to the same contract but only to different functions
+    modifier nonReentrantZone2() {
+        // On the first call to nonReentrant, _notEntered will be true
+        require(_statusZone2 != _ENTERED, "REENTRANT_CALL_ZONE2");
+
+        // Any calls to nonReentrant after this point will fail
+        _statusZone2 = _ENTERED;
+
+        _;
+
+        // By storing the original value once again, a refund is triggered (see
+        // https://eips.ethereum.org/EIPS/eip-2200)
+        _statusZone2 = _NOT_ENTERED;
     }
 }

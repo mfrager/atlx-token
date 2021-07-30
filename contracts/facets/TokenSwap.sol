@@ -4,8 +4,7 @@ pragma solidity ^0.8.0;
 import "../../libraries/DataTokenSwap.sol";
 import "../../libraries/ReentrancyGuard.sol";
 import "../../libraries/AccessControlEnumerable.sol";
-import "../../interfaces/IERC20.sol";
-import "../../interfaces/IERC20Merchant.sol";
+import "../../interfaces/IERC20Full.sol";
 import "../../interfaces/IAggregatorInterface.sol";
 import "../../utils/Context.sol";
 
@@ -77,7 +76,7 @@ contract TokenSwap is Context, ReentrancyGuard, AccessControlEnumerable {
             require(fromAmount == 0, "INVALID_PARAMETER");
             fromAmount = msg.value;
         } else {
-            bool ok = IERC20(fromToken).transferFrom(fromAccount, address(this), fromAmount);
+            bool ok = IERC20Full(fromToken).transferFrom(fromAccount, address(this), fromAmount);
             require(ok == true, "ERC20_TRANSER_FROM_FAILED");
         }
         s.tokenBalances[fromToken] = s.tokenBalances[fromToken] + fromAmount;
@@ -93,7 +92,7 @@ contract TokenSwap is Context, ReentrancyGuard, AccessControlEnumerable {
             (bool sent, bytes memory data) = toAccount.call{value: withdrawAmount}("");
             require(sent, "ETHEREUM_WITHDRAWAL_FAILED");
         } else {
-            bool ok = IERC20(forToken).transfer(toAccount, withdrawAmount);
+            bool ok = IERC20Full(forToken).transfer(toAccount, withdrawAmount);
             require(ok == true, "ERC20_TRANSER_FAILED");
         }
         s.tokenBalances[forToken] = s.tokenBalances[forToken] - withdrawAmount;
@@ -120,7 +119,9 @@ contract TokenSwap is Context, ReentrancyGuard, AccessControlEnumerable {
         uint256 tokensOut;
         uint256 tokensFee;
         if (sp.oracleToken != address(0)) {
-            uint256 oracleQuote = IAggregatorInterface(sp.oracleToken).latestAnswer();
+            int256 oracleInput = IAggregatorInterface(sp.oracleToken).latestAnswer();
+            require(oracleInput > 0, "INVALID_QUOTE");
+            uint256 oracleQuote = uint256(oracleInput);
             if (sp.oracleDecimals != 18) { // Scale to 18 decimals if something different
                 oracleQuote = oracleQuote * (10**(18 - sp.oracleDecimals));
             } 
@@ -147,26 +148,26 @@ contract TokenSwap is Context, ReentrancyGuard, AccessControlEnumerable {
             require(s.tokenBalances[sp.toToken] >= totalOut, "NOT_ENOUGH_TOKENS_TO_SWAP");
         }
         if (sp.merchant) {
-            bool isMerchant = IERC20Merchant(sp.fromToken).isValidMerchant(fromAccount);
+            bool isMerchant = IERC20Full(sp.fromToken).isValidMerchant(fromAccount);
             require(isMerchant, "MERCHANT_ONLY_SWAP");
         }
         // Burn internal tokens or receive external tokens
         if (sp.burn) {
-            bool ok2 = IERC20(sp.fromToken).burn(fromAccount, tokensIn);
+            bool ok2 = IERC20Full(sp.fromToken).burn(fromAccount, tokensIn);
             require(ok2 == true, "ERC20_BURN_FAILED");
         } else {
             if (sp.fromToken != address(1)) {
-                bool ok1 = IERC20(sp.fromToken).transferFrom(fromAccount, address(this), tokensIn);
+                bool ok1 = IERC20Full(sp.fromToken).transferFrom(fromAccount, address(this), tokensIn);
                 require(ok1 == true, "ERC20_TRANSER_IN_FAILED");
             }
             s.tokenBalances[sp.fromToken] = s.tokenBalances[sp.fromToken] + tokensIn;
         }
         // Mint internal tokens or send external tokens
         if (sp.mint) {
-            bool ok3 = IERC20(sp.toToken).mint(toAccount, tokensOut);
+            bool ok3 = IERC20Full(sp.toToken).mint(toAccount, tokensOut);
             require(ok3 == true, "ERC20_MINT_FAILED");
             if (feeOut > 0) {
-                bool ok3a = IERC20(sp.toToken).mint(s.feeAccount, feeOut);
+                bool ok3a = IERC20Full(sp.toToken).mint(s.feesAccount, feeOut);
                 require(ok3a == true, "ERC20_MINT_FEE_FAILED");
             }
         } else {
@@ -175,14 +176,14 @@ contract TokenSwap is Context, ReentrancyGuard, AccessControlEnumerable {
                 (bool sent, bytes memory data) = toAccount.call{value: tokensOut}("");
                 require(sent, "ETHEREUM_SWAP_FAILED");
                 if (feeOut > 0) {
-                    (bool sent2, bytes memory data2) = payable(s.feeAccount).call{value: feeOut}("");
+                    (bool sent2, bytes memory data2) = payable(s.feesAccount).call{value: feeOut}("");
                     require(sent2, "ETHEREUM_SWAP_FEE_FAILED");
                 }
             } else {
-                bool ok4 = IERC20(sp.toToken).transfer(toAccount, tokensOut);
+                bool ok4 = IERC20Full(sp.toToken).transfer(toAccount, tokensOut);
                 require(ok4 == true, "ERC20_TRANSFER_FAILED");
                 if (feeOut > 0) {
-                    bool ok4a = IERC20(sp.toToken).transfer(s.feeAccount, feeOut);
+                    bool ok4a = IERC20Full(sp.toToken).transfer(s.feesAccount, feeOut);
                     require(ok4a == true, "ERC20_TRANSFER_FEE_FAILED");
                 }
             }

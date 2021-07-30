@@ -1,6 +1,7 @@
 import sys
 import time
 import uuid
+import pprint
 from datetime import datetime, timezone
 from dateutil.relativedelta import relativedelta
 from brownie import Diamond, DiamondCut, ERC20Token, TokenSwap, accounts, interface
@@ -37,9 +38,9 @@ def main():
     for i in range(6):
         print('Account {}: {}'.format(i, accounts[i]))
 
+    dcf1 = DiamondCut.deploy({'from': accounts[0]})
     dm1 = Diamond.deploy(dcf1, [accounts[0], accounts[4]], {'from': accounts[0]})
     token1 = ERC20Token.deploy({'from': accounts[0]}) # Circulating Stablecoin
-    dcf1 = DiamondCut.deploy({'from': accounts[0]})
     dmd1 = interface.IDiamondCut(dm1)
     dmd1.diamondCut([
         [token1, 0, [
@@ -57,9 +58,8 @@ def main():
     dadm1 = interface.IDiamondAdmin(dm1)
     print('Diamond 1 Admin: {}'.format(dadm1.admin({'from': accounts[0]})))
 
-    token2 = ERC20Token.deploy({'from': accounts[1]}) # Internal Stablecoin
-    #dcf2 = DiamondCut.deploy({'from': accounts[1]})
     dm2 = Diamond.deploy(dcf1, [accounts[1], accounts[5]], {'from': accounts[1]})
+    token2 = ERC20Token.deploy({'from': accounts[1]}) # Internal Stablecoin
     dmd2 = interface.IDiamondCut(dm2)
     dmd2.diamondCut([
         [token2, 0, [
@@ -102,64 +102,152 @@ def main():
     ], ZERO_ADDRESS, bytes(), {'from': accounts[1]})
     print('Diamond 2: {}'.format(dm2))
 
-    if False:
-        token3 = TokenSwap.deploy({'from': accounts[1]}) # Swapper
-        dcf3 = DiamondCut.deploy({'from': accounts[1]})
-        dm3 = Diamond.deploy(dcf3, [accounts[1], accounts[5]], {'from': accounts[1]})
-        dmd3 = interface.IDiamondCut(dm3)
-        #print(token3.swapTokens.signature)
-        #print(token3.buyTokens.signature)
-        dmd3.diamondCut([
-            [token3, 0, [
-                token3.setupSwap.signature,
-                token3.registerToken.signature,
-                token3.registerSwapPair.signature,
-                token3.depositTokens.signature,
-                token3.withdrawTokens.signature,
-                token3.swapTokens.signature,
-            ]]
-        ], ZERO_ADDRESS, bytes(), {'from': accounts[1]})
-        print('Diamond 3: {}'.format(dm3))
+    down2 = interface.IDiamondOwner(dm2)
+    print('Diamond 2 Owner: {}'.format(down2.owner({'from': accounts[1]})))
+    dadm2 = interface.IDiamondAdmin(dm2)
+    print('Diamond 2 Admin: {}'.format(dadm2.admin({'from': accounts[1]})))
 
-        erc1 = interface.IERC20Full(dm1)
-        erc2 = interface.IERC20Full(dm2)
-        tswp = interface.ITokenSwap(dm3)
+    dm3 = Diamond.deploy(dcf1, [accounts[1], accounts[5]], {'from': accounts[1]})
+    token3 = ERC20Token.deploy({'from': accounts[1]}) # Internal Stablecoin
+    dmd3 = interface.IDiamondCut(dm2)
+    dmd3.diamondCut([
+        [token3, 0, [
+            token3.setupERC20Token.signature,
+            token3.name.signature,
+            token3.symbol.signature,
+            token3.decimals.signature,
+            token3.totalSupply.signature,
+            token3.balanceOf.signature,
+            token3.transfer.signature,
+            token3.transferFrom.signature,
+            token3.allowance.signature,
+            token3.approve.signature,
+            token3.increaseAllowance.signature,
+            token3.decreaseAllowance.signature,
+            token3.mint.signature,
+            token3.burn.signature,
+            # Admin tools
+            token3.ban.signature,
+            token3.unban.signature,
+            token3.hasRole.signature,
+            token3.getRoleAdmin.signature,
+            token3.grantRole.signature,
+            token3.revokeRole.signature,
+            token3.renounceRole.signature,
+            token3.getRoleMember.signature,
+            token3.getRoleMemberCount.signature,
+            # Merchants
+            token3.enableMerchant.signature,
+            token3.disableMerchant.signature,
+            token3.isValidMerchant.signature,
+            # Subscriptions
+            token3.actionBatch.signature,
+            token3.beginSubscription.signature,
+            token3.processSubscription.signature,
+            token3.processSubscriptionBatch.signature,
+            token3.grantSubscriptionAdmin.signature,
+            token3.revokeSubscriptionAdmin.signature,
+        ]]
+    ], ZERO_ADDRESS, bytes(), {'from': accounts[1]})
+    print('Diamond 3: {}'.format(dm3))
 
-        #input('Begin?')
+    down3 = interface.IDiamondOwner(dm3)
+    print('Diamond 3 Owner: {}'.format(down3.owner({'from': accounts[1]})))
+    dadm3 = interface.IDiamondAdmin(dm3)
+    print('Diamond 3 Admin: {}'.format(dadm3.admin({'from': accounts[1]})))
 
-        print('Setup')
-        print(erc1.setupERC20Token('Virtual USD', 'VUSD', 1000000 * (10**18), tswp, {'from': accounts[0]}))
-        print(erc2.setupERC20Token('SaaS Coin', 'SAAS', 1000000 * (10**18), tswp, {'from': accounts[1]}))
+    dm4 = Diamond.deploy(dcf1, [accounts[1], accounts[5]], {'from': accounts[1]})
+    token4 = TokenSwap.deploy({'from': accounts[1]}) # Swapper
+    dmd4 = interface.IDiamondCut(dm4)
+    dmd4.diamondCut([
+        [token4, 0, [
+            token4.setupSwap.signature,
+            token4.registerToken.signature,
+            token4.registerSwapPairs.signature,
+            token4.depositTokens.signature,
+            token4.withdrawTokens.signature,
+            token4.swapTokens.signature,
+        ]]
+    ], ZERO_ADDRESS, bytes(), {'from': accounts[1]})
+    print('Diamond 4: {}'.format(dm4))
+
+    down4 = interface.IDiamondOwner(dm4)
+    print('Diamond 4 Owner: {}'.format(down4.owner({'from': accounts[1]})))
+    dadm4 = interface.IDiamondAdmin(dm4)
+    print('Diamond 4 Admin: {}'.format(dadm4.admin({'from': accounts[1]})))
+
+    erc1 = interface.IERC20Full(dm1)
+    erc2 = interface.IERC20Full(dm2)
+    erc3 = interface.IERC20Full(dm3)
+    tswp = interface.ITokenSwap(dm4)
+
+    #input('Begin?')
+
+    print('Setup')
+    print(erc1.setupERC20Token('Who Dai', 'whoDAI', 1000 * (10**18), tswp, {'from': accounts[0]}).events)
+    print(erc2.setupERC20Token('Virtual USD', 'vtUSD', 0, tswp, {'from': accounts[1]}).events)
+    print(erc3.setupERC20Token('Atellix', 'ATLX', 10000000 * (10**18), tswp, {'from': accounts[1]}).events)
+
+    if True:
         print('Transfer')
-        print(erc1.transfer(accounts[3], 1000 * (10**18), {'from': accounts[0]})) # User gets VUSD from exchange
-        #print(erc2.transfer(accounts[1], 1000000, {'from': accounts[1]})) # Transfer owner all minted SaaS Coin
+        print(erc1.transfer(accounts[3], 1000 * (10**18), {'from': accounts[0]})) # User gets whoDAI from exchange
 
         print('Balance')
-        print('User sDAI: {}'.format(erc1.balanceOf(accounts[3], {'from': accounts[3]}) / (10**18)))
-        print('User vUSD: {}'.format(erc2.balanceOf(accounts[3], {'from': accounts[3]}) / (10**18)))
-        print('Swap sDAI: {}'.format(erc1.balanceOf(tswp, {'from': accounts[1]}) / (10**18)))
-        print('Swap vUSD: {}'.format(erc2.balanceOf(tswp, {'from': accounts[1]}) / (10**18)))
-        print('Revenue sDAI: {}'.format(erc1.balanceOf(accounts[2], {'from': accounts[2]}) / (10**18)))
-        print('Revenue vUSD: {}'.format(erc2.balanceOf(accounts[2], {'from': accounts[2]}) / (10**18)))
+        print('User whoDAI: {}'.format(erc1.balanceOf(accounts[3], {'from': accounts[3]}) / (10**18)))
+        print('User ATLX: {}'.format(erc2.balanceOf(accounts[3], {'from': accounts[3]}) / (10**18)))
+        print('Swap whoDAI: {}'.format(erc1.balanceOf(tswp, {'from': accounts[1]}) / (10**18)))
+        print('Swap ATLX: {}'.format(erc2.balanceOf(tswp, {'from': accounts[1]}) / (10**18)))
+        #print('Revenue sDAI: {}'.format(erc1.balanceOf(accounts[2], {'from': accounts[2]}) / (10**18)))
+        #print('Revenue vUSD: {}'.format(erc2.balanceOf(accounts[2], {'from': accounts[2]}) / (10**18)))
 
+    if True:
         print('Register Tokens')
-        print(tswp.setupSwap(accounts[1], {'from': accounts[1]}))
+        print(tswp.setupSwap(accounts[1], accounts[1], {'from': accounts[1]}))
         print(tswp.registerToken(ONE_ADDRESS, 'ETH', {'from': accounts[1]}))
-        print(tswp.registerToken(dm1, 'sDAI', {'from': accounts[1]}))
-        print(tswp.registerToken(dm2, 'vUSD', {'from': accounts[1]}))
-        print(tswp.registerSwapPair(1, dm1, dm2, 1, 1, False, {'from': accounts[1]}).events)
-        print(tswp.registerSwapPair(2, dm2, dm1, 0.9 * (10**10), (10**10), False, {'from': accounts[1]}).events)
-        print(tswp.registerSwapPair(3, dm2, dm1, 1, 1, True, {'from': accounts[1]}).events)
-        print(tswp.registerSwapPair(4, ONE_ADDRESS, dm2, 2000 * (10**18), (10**18), False, {'from': accounts[1]}).events)
+        print(tswp.registerToken(dm1, 'whoDAI', {'from': accounts[1]}))
+        print(tswp.registerToken(dm2, 'vtUSD', {'from': accounts[1]}))
+        print(tswp.registerSwapPairs([
+            # vtUSD <-> whoDAI
+            [1, dm1, dm2, (10**18), (10**18), 50 * (10**18), 0, ZERO_ADDRESS, 0, False, False, True, False],
+            [2, dm2, dm1, 0.9 * (10**18), (10**18), 25 * (10**18), 0.025 * (10**18), ZERO_ADDRESS, 0, False, False, False, True],
+            [3, dm2, dm1, (10**18), (10**18), 0.01 * (10**18), 0, ZERO_ADDRESS, 0, False, True, False, True],
+            # 
+        ], {'from': accounts[1]}).events)
 
+        #print(tswp.registerSwapPair(1, dm1, dm2, 1, 1, False, {'from': accounts[1]}).events)
+        #print(tswp.registerSwapPair(2, dm2, dm1, 0.9 * (10**10), (10**10), False, {'from': accounts[1]}).events)
+        #print(tswp.registerSwapPair(3, dm2, dm1, 1, 1, True, {'from': accounts[1]}).events)
+        #print(tswp.registerSwapPair(4, ONE_ADDRESS, dm2, 2000 * (10**18), (10**18), False, {'from': accounts[1]}).events)
+
+    if True:
+        print('Approve')
+        print(erc1.approve(tswp, 500 * (10**18), {'from': accounts[3]})) # Approve purchase of SaaS Coin
+
+        print('Enable Merchant 1')
+        print(erc2.enableMerchant(accounts[2], {'from': accounts[1]}).events)
+
+        print('Action Batch')
+        sbid = uuid.uuid4().bytes
+        fid = uuid.uuid4().bytes
+        print(erc2.actionBatch(accounts[3], [0, 1], [
+            [tswp, accounts[3], 1, 500 * (10**18)], # Swap
+        ], [
+            [sbid, accounts[2], False, True, fid, 2 * (10**18), ts_data(), [3, 60 * 60 * 48, 3 * (10**18)]], # Subscribe
+            #[sbid, accounts[2], False, False, 0, 0, ts_data(), [3, 60 * 60 * 48, 100 * (10**18)]], # Subscribe
+        ], {'from': accounts[1]}).events) # batch action
+
+        print('Balance')
+        print('User whoDAI: {}'.format(erc1.balanceOf(accounts[3], {'from': accounts[3]}) / (10**18)))
+        print('User ATLX: {}'.format(erc2.balanceOf(accounts[3], {'from': accounts[3]}) / (10**18)))
+        print('Swap whoDAI: {}'.format(erc1.balanceOf(tswp, {'from': accounts[1]}) / (10**18)))
+        print('Swap ATLX: {}'.format(erc2.balanceOf(tswp, {'from': accounts[1]}) / (10**18)))
+
+    if False:
         print('Approve 1')
         print(erc2.approve(tswp, 1000000 * (10**18), {'from': accounts[1]})) # Approve 
         print('Deposit')
         print(tswp.depositTokens(dm2, accounts[1], 1000000 * (10**18), {'from': accounts[1]}).events); # Deposit all of owner's SaaS Coins
         #print(tswp.depositTokens(dm1, accounts[3], 100, {'from': accounts[3]}).events); # Deposit 100 VUSD by User to swap for SAAS
-
-        print('Enable Merchant 1')
-        print(erc2.enableMerchant(accounts[2], {'from': accounts[1]}).events)
 
         print('Approve 2')
         print(erc1.approve(tswp, 1000 * (10**18), {'from': accounts[3]})) # Approve purchase of SaaS Coin
