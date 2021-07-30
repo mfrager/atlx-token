@@ -58,7 +58,8 @@ def main():
     dadm1 = interface.IDiamondAdmin(dm1)
     print('Diamond 1 Admin: {}'.format(dadm1.admin({'from': accounts[0]})))
 
-    dm2 = Diamond.deploy(dcf1, [accounts[1], accounts[5]], {'from': accounts[1]})
+    dcf2 = DiamondCut.deploy({'from': accounts[0]})
+    dm2 = Diamond.deploy(dcf2, [accounts[1], accounts[5]], {'from': accounts[1]})
     token2 = ERC20Token.deploy({'from': accounts[1]}) # Internal Stablecoin
     dmd2 = interface.IDiamondCut(dm2)
     dmd2.diamondCut([
@@ -107,9 +108,10 @@ def main():
     dadm2 = interface.IDiamondAdmin(dm2)
     print('Diamond 2 Admin: {}'.format(dadm2.admin({'from': accounts[1]})))
 
-    dm3 = Diamond.deploy(dcf1, [accounts[1], accounts[5]], {'from': accounts[1]})
+    dcf3 = DiamondCut.deploy({'from': accounts[0]})
+    dm3 = Diamond.deploy(dcf3, [accounts[1], accounts[5]], {'from': accounts[1]})
     token3 = ERC20Token.deploy({'from': accounts[1]}) # Internal Stablecoin
-    dmd3 = interface.IDiamondCut(dm2)
+    dmd3 = interface.IDiamondCut(dm3)
     dmd3.diamondCut([
         [token3, 0, [
             token3.setupERC20Token.signature,
@@ -186,7 +188,7 @@ def main():
     print('Setup')
     print(erc1.setupERC20Token('Who Dai', 'whoDAI', 1000 * (10**18), tswp, {'from': accounts[0]}).events)
     print(erc2.setupERC20Token('Virtual USD', 'vtUSD', 0, tswp, {'from': accounts[1]}).events)
-    print(erc3.setupERC20Token('Atellix', 'ATLX', 10000000 * (10**18), tswp, {'from': accounts[1]}).events)
+    print(erc3.setupERC20Token('Atellix', 'ATLX', 10000 * (10**18), tswp, {'from': accounts[1]}).events)
 
     if True:
         print('Transfer')
@@ -206,13 +208,22 @@ def main():
         print(tswp.registerToken(ONE_ADDRESS, 'ETH', {'from': accounts[1]}))
         print(tswp.registerToken(dm1, 'whoDAI', {'from': accounts[1]}))
         print(tswp.registerToken(dm2, 'vtUSD', {'from': accounts[1]}))
+        print(tswp.registerToken(dm3, 'ATLX', {'from': accounts[1]}))
         print(tswp.registerSwapPairs([
             # vtUSD <-> whoDAI
             [1, dm1, dm2, (10**18), (10**18), 50 * (10**18), 0, ZERO_ADDRESS, 0, False, False, True, False],
             [2, dm2, dm1, 0.9 * (10**18), (10**18), 25 * (10**18), 0.025 * (10**18), ZERO_ADDRESS, 0, False, False, False, True],
-            [3, dm2, dm1, (10**18), (10**18), 0.01 * (10**18), 0, ZERO_ADDRESS, 0, False, True, False, True],
-            # 
+            [3, dm2, dm1, (10**18), (10**18), 0.01 * (10**18), 0, ZERO_ADDRESS, 0, False, True, False, True], # Merchant-only swap
+            # ATLX <-> whoDAI
+            [4, dm1, dm3, (10**18), 100 * (10**18), 10 * (10**18), 0, ZERO_ADDRESS, 0, False, False, False, False],
+            [5, dm3, dm1, 0.95 * 100 * (10**18), (10**18), 0.5 * (10**18), 0, ZERO_ADDRESS, 0, False, False, False, False],
+            # ATLX <-> ETH
         ], {'from': accounts[1]}).events)
+
+        print('Approve')
+        print(erc3.approve(tswp, 1000000 * (10**18), {'from': accounts[1]})) # Approve 
+        print('Deposit')
+        print(tswp.depositTokens(dm3, accounts[1], 1000 * (10**18), {'from': accounts[1]}).events); # Deposit all of owner's SaaS Coins
 
         #print(tswp.registerSwapPair(1, dm1, dm2, 1, 1, False, {'from': accounts[1]}).events)
         #print(tswp.registerSwapPair(2, dm2, dm1, 0.9 * (10**10), (10**10), False, {'from': accounts[1]}).events)
@@ -221,32 +232,42 @@ def main():
 
     if True:
         print('Approve')
-        print(erc1.approve(tswp, 500 * (10**18), {'from': accounts[3]})) # Approve purchase of SaaS Coin
+        print(erc1.approve(tswp, 500 * (10**18), {'from': accounts[3]}))
+        print(tswp.swapTokens(4, accounts[3], accounts[3], 100 * (10**18), {'from': accounts[3]}))
 
-        print('Enable Merchant 1')
-        print(erc2.enableMerchant(accounts[2], {'from': accounts[1]}).events)
+        #print('Enable Merchant 1')
+        #print(erc2.enableMerchant(accounts[2], {'from': accounts[1]}).events)
 
-        print('Action Batch')
-        sbid = uuid.uuid4().bytes
-        fid = uuid.uuid4().bytes
-        print(erc2.actionBatch(accounts[3], [0, 1], [
-            [tswp, accounts[3], 1, 500 * (10**18)], # Swap
-        ], [
-            [sbid, accounts[2], False, True, fid, 2 * (10**18), ts_data(), [3, 60 * 60 * 48, 3 * (10**18)]], # Subscribe
-            #[sbid, accounts[2], False, False, 0, 0, ts_data(), [3, 60 * 60 * 48, 100 * (10**18)]], # Subscribe
-        ], {'from': accounts[1]}).events) # batch action
+        #print('Action Batch')
+        #sbid = uuid.uuid4().bytes
+        #fid = uuid.uuid4().bytes
+        #print(erc2.actionBatch(accounts[3], [0, 1], [
+        #    [tswp, accounts[3], 1, 500 * (10**18)], # Swap
+        #], [
+        #    [sbid, accounts[2], False, True, fid, 2 * (10**18), ts_data(), [3, 60 * 60 * 48, 3 * (10**18)]], # Subscribe
+        #    #[sbid, accounts[2], False, False, 0, 0, ts_data(), [3, 60 * 60 * 48, 100 * (10**18)]], # Subscribe
+        #], {'from': accounts[1]}).events) # batch action
 
         print('Balance')
         print('User whoDAI: {}'.format(erc1.balanceOf(accounts[3], {'from': accounts[3]}) / (10**18)))
-        print('User ATLX: {}'.format(erc2.balanceOf(accounts[3], {'from': accounts[3]}) / (10**18)))
+        print('User vtUSD: {}'.format(erc2.balanceOf(accounts[3], {'from': accounts[3]}) / (10**18)))
+        print('User ATLX: {}'.format(erc3.balanceOf(accounts[3], {'from': accounts[3]}) / (10**18)))
         print('Swap whoDAI: {}'.format(erc1.balanceOf(tswp, {'from': accounts[1]}) / (10**18)))
-        print('Swap ATLX: {}'.format(erc2.balanceOf(tswp, {'from': accounts[1]}) / (10**18)))
+        print('Swap vtUSD: {}'.format(erc2.balanceOf(tswp, {'from': accounts[1]}) / (10**18)))
+        print('Swap ATLX: {}'.format(erc3.balanceOf(tswp, {'from': accounts[1]}) / (10**18)))
+
+        print(erc3.approve(tswp, 1 * (10**18), {'from': accounts[3]}))
+        print(tswp.swapTokens(5, accounts[3], accounts[3], 1 * (10**18), {'from': accounts[3]}))
+
+        print('Balance')
+        print('User whoDAI: {}'.format(erc1.balanceOf(accounts[3], {'from': accounts[3]}) / (10**18)))
+        print('User vtUSD: {}'.format(erc2.balanceOf(accounts[3], {'from': accounts[3]}) / (10**18)))
+        print('User ATLX: {}'.format(erc3.balanceOf(accounts[3], {'from': accounts[3]}) / (10**18)))
+        print('Swap whoDAI: {}'.format(erc1.balanceOf(tswp, {'from': accounts[1]}) / (10**18)))
+        print('Swap vtUSD: {}'.format(erc2.balanceOf(tswp, {'from': accounts[1]}) / (10**18)))
+        print('Swap ATLX: {}'.format(erc3.balanceOf(tswp, {'from': accounts[1]}) / (10**18)))
 
     if False:
-        print('Approve 1')
-        print(erc2.approve(tswp, 1000000 * (10**18), {'from': accounts[1]})) # Approve 
-        print('Deposit')
-        print(tswp.depositTokens(dm2, accounts[1], 1000000 * (10**18), {'from': accounts[1]}).events); # Deposit all of owner's SaaS Coins
         #print(tswp.depositTokens(dm1, accounts[3], 100, {'from': accounts[3]}).events); # Deposit 100 VUSD by User to swap for SAAS
 
         print('Approve 2')
