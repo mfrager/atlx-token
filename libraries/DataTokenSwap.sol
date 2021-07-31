@@ -12,7 +12,7 @@ struct SwapPair {
     address oracleToken;
     uint8 oracleDecimals;
     bool oracleInverse; // Inverse the oracle price
-    bool merchant; // Merchant-only swap
+    bool restricted; // Merchant or revenue accounts only
     bool mint; // Mint on swap
     bool burn; // Burn on swap
 }

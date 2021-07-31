@@ -15,7 +15,7 @@ contract TokenSwap is Context, ReentrancyGuard, AccessControlEnumerable {
     bytes32 public constant TOKEN_WITHDRAW_ROLE = keccak256("TOKEN_WITHDRAW_ROLE");
 
     event RegisterToken(address indexed token, string label);
-    event RegisterSwapPair(uint32 indexed pair, address indexed fromToken, address indexed toToken, uint256 swapRate, uint256 baseRate, uint256 minimumIn, uint256 feeRate, address oracle, bool merchant);
+    event RegisterSwapPair(uint32 indexed pair, address indexed fromToken, address indexed toToken, uint256 swapRate, uint256 baseRate, uint256 minimumIn, uint256 feeRate, address oracle, bool restricted);
     event SwapTokens(address indexed fromAccount, address indexed toAccount, uint32 pair, uint256 tokensIn, uint256 tokensOut, uint256 feeOut);
 
     function setupSwap(address admin, address fees) external nonReentrant returns (bool) {
@@ -61,10 +61,10 @@ contract TokenSwap is Context, ReentrancyGuard, AccessControlEnumerable {
             sp.feeRate = inp.feeRate;
             sp.oracleToken = inp.oracleToken;
             sp.oracleDecimals = inp.oracleDecimals;
-            sp.merchant = inp.merchant;
+            sp.restricted = inp.restricted;
             sp.mint = inp.mint;
             sp.burn = inp.burn;
-            emit RegisterSwapPair(inp.pairId, inp.fromToken, inp.toToken, inp.swapRate, inp.baseRate, inp.minimumIn, inp.feeRate, sp.oracleToken, sp.merchant);
+            emit RegisterSwapPair(inp.pairId, inp.fromToken, inp.toToken, inp.swapRate, inp.baseRate, inp.minimumIn, inp.feeRate, sp.oracleToken, sp.restricted);
         }
         return (true);
     }
@@ -147,9 +147,9 @@ contract TokenSwap is Context, ReentrancyGuard, AccessControlEnumerable {
         if (!sp.mint) {
             require(s.tokenBalances[sp.toToken] >= totalOut, "NOT_ENOUGH_TOKENS_TO_SWAP");
         }
-        if (sp.merchant) {
-            bool isMerchant = IERC20Full(sp.fromToken).isValidMerchant(fromAccount);
-            require(isMerchant, "MERCHANT_ONLY_SWAP");
+        if (sp.restricted) {
+            bool isRevenue = IERC20Full(sp.fromToken).isRevenueAccount(fromAccount);
+            require(isRevenue, "RESTRICTED_SWAP");
         }
         // Burn internal tokens or receive external tokens
         if (sp.burn) {

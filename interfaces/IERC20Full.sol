@@ -12,16 +12,21 @@ interface IERC20Full {
     /**
      * @dev Token initialization function
      */
-    function setupERC20Token(string memory name_, string memory symbol_, uint256 amount_, address swapper_) external;
+    function setupERC20Token(string memory name, string memory symbol, uint256 amount, uint256 hardcap, address swapper) external;
 
     function mint(address account, uint256 amount) external returns (bool);
     function burn(address account, uint256 amount) external returns (bool);
+    function hardCap() external view returns (uint256);
     function increaseAllowance(address spender, uint256 addedValue) external returns (bool);
     function decreaseAllowance(address spender, uint256 subtractedValue) external returns (bool);
 
     function enableMerchant(address merchant) external returns (bool);
     function disableMerchant(address merchant) external returns (bool);
-    function isValidMerchant(address merchant) external returns (bool);
+    function isValidMerchant(address merchant) external view returns (bool);
+
+    function enableRevenue(address account) external returns (bool);
+    function disableRevenue(address account) external returns (bool);
+    function isRevenueAccount(address account) external view returns (bool);
 
     function grantSubscriptionAdmin(address account, address delegate) external returns (bool);
     function revokeSubscriptionAdmin(address account, address delegate) external returns (bool);
@@ -34,8 +39,11 @@ interface IERC20Full {
      * @dev Emitted when a token has moved after a certain amount of time.
      */
     event BalanceLog(address indexed owner, uint256 balanceNew, uint256 balancePrev, uint256 balancePrevLog, uint ts);
-    event EnableMerchant(address indexed merchant);
-    event DisableMerchant(address indexed merchant);
+    event DeclareHardCap(uint256 hardcap);
+    event EnableMerchantAccount(address indexed merchant);
+    event DisableMerchantAccount(address indexed merchant);
+    event EnableRevenueAccount(address indexed account);
+    event DisableRevenueAccount(address indexed account);
     event Subscription(uint128 indexed subscrId, address indexed from, address indexed to);
     event SubscriptionUpdate(uint128 indexed subscrId, bool pausable, uint8 eventType, uint256 maxBudget, uint32 timeout, uint8 period);
     event SubscriptionBill(uint128 indexed subscrId, uint128 indexed eventId, uint8 eventType, uint256 amount, uint64 timestamp, uint8 errorCode);

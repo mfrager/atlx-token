@@ -78,6 +78,7 @@ def main():
             token2.decreaseAllowance.signature,
             token2.mint.signature,
             token2.burn.signature,
+            token2.hardCap.signature,
             # Admin tools
             token2.ban.signature,
             token2.unban.signature,
@@ -88,10 +89,13 @@ def main():
             token2.renounceRole.signature,
             token2.getRoleMember.signature,
             token2.getRoleMemberCount.signature,
-            # Merchants
+            # Revenue and Merchant Account
             token2.enableMerchant.signature,
             token2.disableMerchant.signature,
+            token2.enableRevenue.signature,
             token2.isValidMerchant.signature,
+            token2.disableRevenue.signature,
+            token2.isRevenueAccount.signature,
             # Subscriptions
             token2.actionBatch.signature,
             token2.beginSubscription.signature,
@@ -186,9 +190,9 @@ def main():
     #input('Begin?')
 
     print('Setup')
-    print(erc1.setupERC20Token('Who Dai', 'whoDAI', 1000 * (10**18), tswp, {'from': accounts[0]}).events)
-    print(erc2.setupERC20Token('Virtual USD', 'vtUSD', 0, tswp, {'from': accounts[1]}).events)
-    print(erc3.setupERC20Token('Atellix', 'ATLX', 10000 * (10**18), tswp, {'from': accounts[1]}).events)
+    print(erc1.setupERC20Token('Who Dai', 'whoDAI', 1000 * (10**18), 0, tswp, {'from': accounts[0]}).events)
+    print(erc2.setupERC20Token('Virtual USD', 'vtUSD', 0, 0, tswp, {'from': accounts[1]}).events)
+    print(erc3.setupERC20Token('Atellix', 'ATLX', 10000 * (10**18), 10000000 *(10**18), tswp, {'from': accounts[1]}).events)
 
     if True:
         print('Transfer')
@@ -216,7 +220,7 @@ def main():
             [3, dm2, dm1, (10**18), (10**18), 0.01 * (10**18), 0, ZERO_ADDRESS, 0, False, True, False, True], # Merchant-only swap
             # ATLX <-> whoDAI
             [4, dm1, dm3, (10**18), 100 * (10**18), 10 * (10**18), 0, ZERO_ADDRESS, 0, False, False, False, False],
-            [5, dm3, dm1, 0.95 * 100 * (10**18), (10**18), 0.5 * (10**18), 0, ZERO_ADDRESS, 0, False, False, False, False],
+            [5, dm3, dm1, 0.99 * 100 * (10**18), (10**18), 0.5 * (10**18), 0, ZERO_ADDRESS, 0, False, False, False, False],
             # ATLX <-> ETH
         ], {'from': accounts[1]}).events)
 

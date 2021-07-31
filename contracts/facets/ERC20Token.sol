@@ -39,26 +39,36 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
     uint constant TRANSFER_LOG_WAIT_SECONDS = 24 * 60 * 60; // 1 per day
     bytes32 public constant ERC20_TOKEN_ADMIN_ROLE = keccak256("ERC20_TOKEN_ADMIN_ROLE");
     bytes32 public constant MERCHANT_ADMIN_ROLE = keccak256("MERCHANT_ADMIN_ROLE");
+    bytes32 public constant REVENUE_ADMIN_ROLE = keccak256("REVENUE_ADMIN_ROLE");
     bytes32 public constant SUBSCRIPTION_ADMIN_ROLE = keccak256("SUBSCRIPTION_ADMIN_ROLE");
 
     /**
      * @dev Emitted when a token has moved after a certain amount of time.
      */
-    event EnableMerchant(address indexed merchant);
-    event DisableMerchant(address indexed merchant);
     event BalanceLog(address indexed owner, uint256 balanceNew, uint256 balancePrev, uint256 balancePrevLog, uint ts);
+    event DeclareHardCap(uint256 hardcap);
+    event EnableMerchantAccount(address indexed merchant);
+    event DisableMerchantAccount(address indexed merchant);
+    event EnableRevenueAccount(address indexed account);
+    event DisableRevenueAccount(address indexed account);
     event Subscription(uint128 indexed subscrId, address indexed from, address indexed to);
     event SubscriptionUpdate(uint128 indexed subscrId, bool pausable, uint8 eventType, uint256 maxBudget, uint32 timeout, uint8 period);
     event SubscriptionBill(uint128 indexed subscrId, uint128 indexed eventId, uint8 eventType, uint256 amount, uint64 timestamp, uint8 errorCode);
     event SubscriptionDelegateGranted(address indexed admin, address delegate);
     event SubscriptionDelegateRevoked(address indexed admin, address delegate);
 
-    function setupERC20Token(string memory name, string memory symbol, uint256 amount, address swapper) external nonReentrant {
+    function setupERC20Token(string memory tokenName, string memory tokenSymbol, uint256 amount, uint256 hardcap, address swapper) external nonReentrant {
         DataERC20 storage s = DataERC20Storage.diamondStorage();
         require(!s._setupDone, "SETUP_ALREADY_DONE");
+        if (hardcap == 0) {
+            // Default hard cap
+            hardcap = uint256(type(uint64).max) * (10**18);
+        }
+        emit DeclareHardCap(hardcap);
         s._setupDone = true;
-        s._name = name;
-        s._symbol = symbol;
+        s._name = tokenName;
+        s._symbol = tokenSymbol;
+        s._hardcap = hardcap;
         s._swapper = swapper;
         address sender = _msgSender();
         s._subscriptionAdmin[sender] = true;
@@ -67,11 +77,12 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
         emit SubscriptionDelegateGranted(sender, address(1));
         _setupRole(DEFAULT_ADMIN_ROLE, sender);
         _setupBans(sender);
-        _setRoleAdmin(MERCHANT_ADMIN_ROLE, DEFAULT_ADMIN_ROLE);
         _setRoleAdmin(ERC20_TOKEN_ADMIN_ROLE, DEFAULT_ADMIN_ROLE);
+        _setRoleAdmin(REVENUE_ADMIN_ROLE, DEFAULT_ADMIN_ROLE);
         _setRoleAdmin(MERCHANT_ADMIN_ROLE, DEFAULT_ADMIN_ROLE);
         _setRoleAdmin(SUBSCRIPTION_ADMIN_ROLE, DEFAULT_ADMIN_ROLE);
         _setupRole(ERC20_TOKEN_ADMIN_ROLE, sender);
+        _setupRole(REVENUE_ADMIN_ROLE, sender);
         _setupRole(MERCHANT_ADMIN_ROLE, sender);
         _setupRole(SUBSCRIPTION_ADMIN_ROLE, sender);
         if (amount > 0) {
@@ -82,20 +93,43 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
     function enableMerchant(address merchant) external nonReentrant onlyRole(MERCHANT_ADMIN_ROLE) returns (bool) {
         DataERC20 storage s = DataERC20Storage.diamondStorage();
         s._validMerchant[merchant] = true;
-        emit EnableMerchant(merchant);
+        s._validRevenue[merchant] = false;
+        emit EnableRevenueAccount(merchant);
+        emit EnableMerchantAccount(merchant);
         return(true);
     }
 
     function disableMerchant(address merchant) external nonReentrant onlyRole(MERCHANT_ADMIN_ROLE) returns (bool) {
         DataERC20 storage s = DataERC20Storage.diamondStorage();
         s._validMerchant[merchant] = false;
-        emit DisableMerchant(merchant);
+        s._validRevenue[merchant] = false;
+        emit DisableRevenueAccount(merchant);
+        emit DisableMerchantAccount(merchant);
         return(true);
     }
 
-    function isValidMerchant(address merchant) external nonReentrant returns (bool) {
+    function isRevenueAccount(address account) external nonReentrant returns (bool) {
         DataERC20 storage s = DataERC20Storage.diamondStorage();
-        return(s._validMerchant[merchant]);
+        return(s._validRevenue[account]);
+    }
+
+    function enableRevenue(address account) external nonReentrant onlyRole(REVENUE_ADMIN_ROLE) returns (bool) {
+        DataERC20 storage s = DataERC20Storage.diamondStorage();
+        s._validRevenue[account] = true;
+        emit EnableRevenueAccount(account);
+        return(true);
+    }
+
+    function disableRevenue(address account) external nonReentrant onlyRole(REVENUE_ADMIN_ROLE) returns (bool) {
+        DataERC20 storage s = DataERC20Storage.diamondStorage();
+        s._validRevenue[account] = false;
+        emit DisableRevenueAccount(account);
+        return(true);
+    }
+
+    function isValidMerchant(address account) external nonReentrant returns (bool) {
+        DataERC20 storage s = DataERC20Storage.diamondStorage();
+        return(s._validRevenue[account]);
     }
 
     function grantSubscriptionAdmin(address account, address delegate) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) returns (bool) {
@@ -413,6 +447,11 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
         return s._totalSupply;
     }
 
+    function hardCap() public view virtual returns (uint256) {
+        DataERC20 storage s = DataERC20Storage.diamondStorage();
+        return s._hardcap;
+    }
+
     /**
      * @dev See {IERC20-balanceOf}.
      */
@@ -602,6 +641,7 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
     function _mint(address account, uint256 amount) internal virtual {
         require(account != address(0), "ERC20_MINT_TO_ZERO_ADDRESS");
         DataERC20 storage s = DataERC20Storage.diamondStorage();
+        require(s._totalSupply + amount <= s._hardcap, "MINT_EXCEEDS_HARD_CAP");
         uint256 prev = s._balances[account];
         s._totalSupply += amount;
         s._balances[account] += amount;
