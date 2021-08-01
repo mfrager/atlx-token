@@ -1,10 +1,13 @@
 import sys
 import time
 import uuid
+import sha3
 import pprint
 from datetime import datetime, timezone
 from dateutil.relativedelta import relativedelta
 from brownie import Diamond, DiamondCut, ERC20Token, TokenSwap, accounts, interface
+from eth_account import Account
+from eip712.messages import EIP712Message
 
 ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 ONE_ADDRESS = '0x0000000000000000000000000000000000000001'
@@ -58,7 +61,7 @@ def main():
     dadm1 = interface.IDiamondAdmin(dm1)
     print('Diamond 1 Admin: {}'.format(dadm1.admin({'from': accounts[0]})))
 
-    dcf2 = DiamondCut.deploy({'from': accounts[0]})
+    dcf2 = DiamondCut.deploy({'from': accounts[1]})
     dm2 = Diamond.deploy(dcf2, [accounts[1], accounts[5]], {'from': accounts[1]})
     token2 = ERC20Token.deploy({'from': accounts[1]}) # Internal Stablecoin
     dmd2 = interface.IDiamondCut(dm2)
@@ -112,7 +115,7 @@ def main():
     dadm2 = interface.IDiamondAdmin(dm2)
     print('Diamond 2 Admin: {}'.format(dadm2.admin({'from': accounts[1]})))
 
-    dcf3 = DiamondCut.deploy({'from': accounts[0]})
+    dcf3 = DiamondCut.deploy({'from': accounts[1]})
     dm3 = Diamond.deploy(dcf3, [accounts[1], accounts[5]], {'from': accounts[1]})
     token3 = ERC20Token.deploy({'from': accounts[1]}) # Internal Stablecoin
     dmd3 = interface.IDiamondCut(dm3)
@@ -219,7 +222,7 @@ def main():
             [2, dm2, dm1, 0.9 * (10**18), (10**18), 25 * (10**18), 0.025 * (10**18), ZERO_ADDRESS, 0, False, False, False, True],
             [3, dm2, dm1, (10**18), (10**18), 0.01 * (10**18), 0, ZERO_ADDRESS, 0, False, True, False, True], # Merchant-only swap
             # ATLX <-> whoDAI
-            [4, dm1, dm3, (10**18), 100 * (10**18), 10 * (10**18), 0, ZERO_ADDRESS, 0, False, False, False, False],
+            [4, dm1, dm3, (10**18), 100 * (10**18), 2 * (10**18), 0, ZERO_ADDRESS, 0, False, False, False, False],
             [5, dm3, dm1, 0.99 * 100 * (10**18), (10**18), 0.5 * (10**18), 0, ZERO_ADDRESS, 0, False, False, False, False],
             # ATLX <-> ETH
         ], {'from': accounts[1]}).events)
@@ -237,20 +240,39 @@ def main():
     if True:
         print('Approve')
         print(erc1.approve(tswp, 500 * (10**18), {'from': accounts[3]}))
-        print(tswp.swapTokens(4, accounts[3], accounts[3], 100 * (10**18), {'from': accounts[3]}))
+        #print(tswp.swapTokens(4, accounts[3], accounts[3], 100 * (10**18), {'from': accounts[3]}))
 
-        #print('Enable Merchant 1')
-        #print(erc2.enableMerchant(accounts[2], {'from': accounts[1]}).events)
+        print('Enable Merchant 1')
+        print(erc2.enableMerchant(accounts[2], {'from': accounts[1]}).events)
 
-        #print('Action Batch')
-        #sbid = uuid.uuid4().bytes
-        #fid = uuid.uuid4().bytes
-        #print(erc2.actionBatch(accounts[3], [0, 1], [
-        #    [tswp, accounts[3], 1, 500 * (10**18)], # Swap
-        #], [
-        #    [sbid, accounts[2], False, True, fid, 2 * (10**18), ts_data(), [3, 60 * 60 * 48, 3 * (10**18)]], # Subscribe
-        #    #[sbid, accounts[2], False, False, 0, 0, ts_data(), [3, 60 * 60 * 48, 100 * (10**18)]], # Subscribe
-        #], {'from': accounts[1]}).events) # batch action
+        print('Authorize Admin 1')
+        print(erc2.grantRole(sha3.keccak_256(b'REVENUE_ADMIN_ROLE').digest(), '0xd4039eB67CBB36429Ad9DD30187B94f6A5122215', {'from': accounts[1]}).events)
+
+        print('Action Batch')
+        sbid = uuid.uuid4().bytes
+        fid = uuid.uuid4().bytes
+        #fid_hash = sha3.keccak_256(fid).digest()
+
+        class SignedTransfer(EIP712Message):
+            _name_: 'string' = 'Virtual USD'
+            _version_: 'string' = '1'
+            _chainId_: 'uint256' = 0
+            _verifyingContract_: 'address' = str(dm2)
+            exp: 'uint64' # expires
+            src: 'address' # source
+            tid: 'uint128'  # transfer id
+
+        local = Account.from_key('0x64e02814da99b567a92404a5ac82c087cd41b0065cd3f4c154c14130f1966aaf') # Account 1
+        expire = int(time.time()) + 60
+        sid = SignedTransfer(exp=expire, src=str(accounts[3]), tid=int.from_bytes(fid, 'big'))
+        sm = local.sign_message(sid)
+        #print(sm.messageHash.hex())
+        
+        print(erc2.actionBatch(accounts[3], [0, 1], [
+            [tswp, accounts[3], 1, 100 * (10**18)], # Swap
+        ], [
+            [sbid, accounts[2], False, True, fid, 25 * (10**18), ts_data(), [3, 60 * 60 * 48, 50 * (10**18)]], # Subscribe
+        ], [fid, expire, sm.signature], {'from': accounts[3]}).events) # batch action
 
         print('Balance')
         print('User whoDAI: {}'.format(erc1.balanceOf(accounts[3], {'from': accounts[3]}) / (10**18)))
@@ -260,6 +282,7 @@ def main():
         print('Swap vtUSD: {}'.format(erc2.balanceOf(tswp, {'from': accounts[1]}) / (10**18)))
         print('Swap ATLX: {}'.format(erc3.balanceOf(tswp, {'from': accounts[1]}) / (10**18)))
 
+    if False:
         print(erc3.approve(tswp, 1 * (10**18), {'from': accounts[3]}))
         print(tswp.swapTokens(5, accounts[3], accounts[3], 1 * (10**18), {'from': accounts[3]}))
 

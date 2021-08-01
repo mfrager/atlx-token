@@ -14,6 +14,13 @@ interface IERC20Full {
      */
     function setupERC20Token(string memory name, string memory symbol, uint256 amount, uint256 hardcap, address swapper) external;
 
+    // RBAC functions
+    function hasRole(bytes32 role, address account) external view returns (bool);
+    function getRoleAdmin(bytes32 role) external view returns (bytes32);
+    function grantRole(bytes32 role, address account) external;
+    function revokeRole(bytes32 role, address account) external;
+    function renounceRole(bytes32 role, address account) external;
+
     function mint(address account, uint256 amount) external returns (bool);
     function burn(address account, uint256 amount) external returns (bool);
     function hardCap() external view returns (uint256);
@@ -27,13 +34,15 @@ interface IERC20Full {
     function enableRevenue(address account) external returns (bool);
     function disableRevenue(address account) external returns (bool);
     function isRevenueAccount(address account) external view returns (bool);
+    function signedTransfer(address recipient, uint256 amount, SignedId calldata sid) external returns (bool);
+    function signedTransferFrom(address sender, address recipient, uint256 amount, SignedId calldata sid) external returns (bool);
 
     function grantSubscriptionAdmin(address account, address delegate) external returns (bool);
     function revokeSubscriptionAdmin(address account, address delegate) external returns (bool);
     function beginSubscription(uint128 subscrId, address fromAccount, address toAccount, address terms, bool pausable, SubscriptionSpec calldata spec) external returns (bool);
-    function processSubscription(SubscriptionEvent calldata subscrData, bool abortOnFail) external returns (bool);
-    function processSubscriptionBatch(SubscriptionEvent[] calldata subscrList, bool abortOnFail) external returns (bool);
-    function actionBatch(address account, uint8[] calldata actionList, ActionSwap[] calldata swapList, ActionSubscribe[] calldata subscribeList) external returns (bool);
+    function processSubscription(SubscriptionEvent calldata subscrData, bool abortOnFail, SignedId calldata sid) external returns (bool);
+    function processSubscriptionBatch(SubscriptionEvent[] calldata subscrList, bool abortOnFail, SignedId calldata sid) external returns (bool);
+    function actionBatch(address account, uint8[] calldata actionList, ActionSwap[] calldata swapList, ActionSubscribe[] calldata subscribeList, SignedId calldata sid) external returns (bool);
 
     /**
      * @dev Emitted when a token has moved after a certain amount of time.
@@ -44,6 +53,7 @@ interface IERC20Full {
     event DisableMerchantAccount(address indexed merchant);
     event EnableRevenueAccount(address indexed account);
     event DisableRevenueAccount(address indexed account);
+    event Revenue(uint128 indexed eventId, address indexed account, address signer, uint256 indexed amount);
     event Subscription(uint128 indexed subscrId, address indexed from, address indexed to);
     event SubscriptionUpdate(uint128 indexed subscrId, bool pausable, uint8 eventType, uint256 maxBudget, uint32 timeout, uint8 period);
     event SubscriptionBill(uint128 indexed subscrId, uint128 indexed eventId, uint8 eventType, uint256 amount, uint64 timestamp, uint8 errorCode);

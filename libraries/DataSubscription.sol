@@ -12,6 +12,12 @@ struct TimestampData {
     // bytes19 utc;
 }
 
+struct SignedId {
+    uint128 id;
+    uint64 exp;
+    bytes sig;
+}
+
 struct SubscriptionEvent {
     uint128 subscrId;
     uint128 eventId;

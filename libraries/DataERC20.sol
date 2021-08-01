@@ -12,6 +12,7 @@ struct DataERC20 {
     mapping(address => bool) _validRevenue;
     mapping(address => bool) _subscriptionAdmin;
     mapping(address => uint8) _delegateCount;
+    mapping(uint128 => bool) _signature;
     mapping(address => mapping(address => bool)) _subscriptionDelegate;
     mapping(uint128 => SubscriptionData) _subscriptions;
     mapping(uint128 => SubscriptionSpec) _subscriptionSpec;
@@ -26,6 +27,7 @@ struct DataERC20 {
     string _name;
     string _symbol;
     address _swapper;
+    bytes32 _domainSeparator;
     bool _setupDone;
 }
 

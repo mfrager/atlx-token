@@ -9,6 +9,7 @@ import "../../interfaces/IERC20.sol";
 import "../../interfaces/IERC20Metadata.sol";
 import "../../interfaces/ITokenSwap.sol";
 import "../../utils/Context.sol";
+import "../../utils/ECDSA.sol";
 
 /**
  * @dev Implementation of the {IERC20} interface.
@@ -36,11 +37,14 @@ import "../../utils/Context.sol";
  */
 contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20, IERC20Metadata {
 
-    uint constant TRANSFER_LOG_WAIT_SECONDS = 24 * 60 * 60; // 1 per day
     bytes32 public constant ERC20_TOKEN_ADMIN_ROLE = keccak256("ERC20_TOKEN_ADMIN_ROLE");
     bytes32 public constant MERCHANT_ADMIN_ROLE = keccak256("MERCHANT_ADMIN_ROLE");
     bytes32 public constant REVENUE_ADMIN_ROLE = keccak256("REVENUE_ADMIN_ROLE");
     bytes32 public constant SUBSCRIPTION_ADMIN_ROLE = keccak256("SUBSCRIPTION_ADMIN_ROLE");
+
+    // keccak256("SignedTransfer(uint64 exp,address src,uint128 tid)")
+    bytes32 public constant SIGNED_TRANSFER_TYPEHASH = 0x8b95e3e1cab32bcd83c8cff57995635fd6d06ad0400156c9bf8ec20db269ff60;
+    uint constant TRANSFER_LOG_WAIT_SECONDS = 24 * 60 * 60; // 1 per day
 
     /**
      * @dev Emitted when a token has moved after a certain amount of time.
@@ -51,6 +55,7 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
     event DisableMerchantAccount(address indexed merchant);
     event EnableRevenueAccount(address indexed account);
     event DisableRevenueAccount(address indexed account);
+    event Revenue(uint128 indexed eventId, address indexed account, address signer, uint256 indexed amount);
     event Subscription(uint128 indexed subscrId, address indexed from, address indexed to);
     event SubscriptionUpdate(uint128 indexed subscrId, bool pausable, uint8 eventType, uint256 maxBudget, uint32 timeout, uint8 period);
     event SubscriptionBill(uint128 indexed subscrId, uint128 indexed eventId, uint8 eventType, uint256 amount, uint64 timestamp, uint8 errorCode);
@@ -70,6 +75,13 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
         s._symbol = tokenSymbol;
         s._hardcap = hardcap;
         s._swapper = swapper;
+        s._domainSeparator = keccak256(abi.encode(
+            keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+            keccak256(bytes(tokenName)),
+            keccak256(bytes("1")),
+            uint256(0),
+            address(this)
+        ));
         address sender = _msgSender();
         s._subscriptionAdmin[sender] = true;
         s._subscriptionDelegate[sender][address(1)] = true;
@@ -86,14 +98,14 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
         _setupRole(MERCHANT_ADMIN_ROLE, sender);
         _setupRole(SUBSCRIPTION_ADMIN_ROLE, sender);
         if (amount > 0) {
-            _mint(_msgSender(), amount);
+            _mint(sender, amount);
         }
     }
 
     function enableMerchant(address merchant) external nonReentrant onlyRole(MERCHANT_ADMIN_ROLE) returns (bool) {
         DataERC20 storage s = DataERC20Storage.diamondStorage();
         s._validMerchant[merchant] = true;
-        s._validRevenue[merchant] = false;
+        s._validRevenue[merchant] = true;
         emit EnableRevenueAccount(merchant);
         emit EnableMerchantAccount(merchant);
         return(true);
@@ -156,7 +168,7 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
         return(true);
     }
 
-    function actionBatch(address account, uint8[] calldata actionList, ActionSwap[] calldata swapList, ActionSubscribe[] calldata subscribeList) external nonReentrant returns (bool) {
+    function actionBatch(address account, uint8[] calldata actionList, ActionSwap[] calldata swapList, ActionSubscribe[] calldata subscribeList, SignedId calldata sid) external nonReentrant returns (bool) {
         notBanned();
         address sender = _msgSender();
         DataERC20 storage s = DataERC20Storage.diamondStorage();
@@ -174,7 +186,7 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
                 _action_swap(swapList[swapIdx]);
                 swapIdx++;
             } else if (action == uint8(ActionType.SUBSCRIBE)) {
-                _action_subscribe(account, subscribeList[subscribeIdx]);
+                _action_subscribe(account, subscribeList[subscribeIdx], sid);
                 subscribeIdx++;
             }
         }
@@ -186,7 +198,7 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
         require(ok == true, "SWAP_FAILED");
     }
 
-    function _action_subscribe(address subscriber, ActionSubscribe calldata act) internal {
+    function _action_subscribe(address subscriber, ActionSubscribe calldata act, SignedId calldata sid) internal {
         _beginSubscription(act.subscrId, subscriber, act.subscrTo, act.pausable, act.subscrSpec);
         if (act.fund) {
             SubscriptionEvent memory fund;
@@ -195,7 +207,8 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
             fund.eventType = uint8(EventType.FUND);
             fund.amount = act.fundAmount;
             fund.thisBill = act.fundTimestamp;
-            _processSubscription(fund, true);
+            address signer = _validSigner(sid);
+            _processSubscription(fund, true, signer);
         }
     }
 
@@ -236,20 +249,24 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
         return (true);
     }
 
-    function processSubscription(SubscriptionEvent calldata subscrData, bool abortOnFail) external nonReentrant onlyRole(SUBSCRIPTION_ADMIN_ROLE) returns (bool) {
+    function processSubscription(SubscriptionEvent calldata subscrData, bool abortOnFail, SignedId calldata sid) external nonReentrant onlyRole(SUBSCRIPTION_ADMIN_ROLE) returns (bool) {
         address sender = _msgSender();
         DataERC20 storage s = DataERC20Storage.diamondStorage();
         require(s._subscriptionAdmin[sender], "ADMIN_ACCESS_DENIED");
-        return _processSubscription(subscrData, abortOnFail);
+        require(subscrData.eventId == sid.id, "INVALID_SIGNATURE");
+        address signer = _validSigner(sid);
+        return _processSubscription(subscrData, abortOnFail, signer);
     }
 
-    function processSubscriptionBatch(SubscriptionEvent[] calldata subscrList, bool abortOnFail) external nonReentrant onlyRole(SUBSCRIPTION_ADMIN_ROLE) returns (bool) {
+    function processSubscriptionBatch(SubscriptionEvent[] calldata subscrList, bool abortOnFail, SignedId calldata sid) external nonReentrant onlyRole(SUBSCRIPTION_ADMIN_ROLE) returns (bool) {
         address sender = _msgSender();
         DataERC20 storage s = DataERC20Storage.diamondStorage();
         require(s._subscriptionAdmin[sender], "ADMIN_ACCESS_DENIED");
+        require(subscrList[0].eventId == sid.id, "INVALID_SIGNATURE"); // Sign the event id for the 1st transaction in the batch
+        address signer = _validSigner(sid);
         bool ok;
         for (uint256 subscrIndex; subscrIndex < subscrList.length; subscrIndex++) {
-            ok = _processSubscription(subscrList[subscrIndex], false);
+            ok = _processSubscription(subscrList[subscrIndex], false, signer);
             if (!ok && abortOnFail) {
                 string memory err = string(abi.encodePacked("SUBSCRIPTION_PROCESS_ERROR:", subscrList[subscrIndex].subscrId));
                 revert(err);
@@ -258,7 +275,7 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
         return(true);
     }
     
-    function _processSubscription(SubscriptionEvent memory subscrData, bool abortOnFail) internal returns (bool) {
+    function _processSubscription(SubscriptionEvent memory subscrData, bool abortOnFail, address signer) internal returns (bool) {
         address sender = _msgSender();
         uint128 subscrId = subscrData.subscrId;
         DataERC20 storage s = DataERC20Storage.diamondStorage();
@@ -282,6 +299,7 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
         }
         if (subscrData.eventType == uint8(EventType.FUND)) {
             _transfer(sd.from, sd.to, subscrData.amount);
+            emit Revenue(subscrData.eventId, sd.to, signer, subscrData.amount);
             emit SubscriptionBill(subscrId, subscrData.eventId, subscrData.eventType, subscrData.amount, subscrData.thisBill.timestamp, uint8(EventResult.SUCCESS));
             return(true);
         }
@@ -327,6 +345,7 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
         }
         // Ready to transfer
         _transfer(sd.from, sd.to, subscrData.amount);
+        emit Revenue(subscrData.eventId, sd.to, signer, subscrData.amount);
         emit SubscriptionBill(subscrId, subscrData.eventId, subscrData.eventType, subscrData.amount, subscrData.thisBill.timestamp, res);
         return(true);
     }
@@ -470,7 +489,17 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
      */
     function transfer(address recipient, uint256 amount) public virtual override nonReentrantZone2 returns (bool) {
         notBanned();
+        DataERC20 storage s = DataERC20Storage.diamondStorage();
+        require (!s._validRevenue[recipient], "ACCESS_DENIED");
         _transfer(_msgSender(), recipient, amount);
+        return true;
+    }
+
+    function signedTransfer(address recipient, uint256 amount, SignedId calldata sid) public virtual nonReentrantZone2 returns (bool) {
+        notBanned();
+        address signer = _validSigner(sid);
+        _transfer(_msgSender(), recipient, amount);
+        emit Revenue(sid.id, recipient, signer, amount);
         return true;
     }
 
@@ -509,20 +538,34 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
      */
     function transferFrom(address sender, address recipient, uint256 amount) public virtual override nonReentrantZone2 returns (bool) {
         notBanned();
-        _transfer(sender, recipient, amount);
-
         DataERC20 storage s = DataERC20Storage.diamondStorage();
+        require (!s._validRevenue[recipient], "ACCESS_DENIED");
+        _transfer(sender, recipient, amount);
         uint256 currentAllowance = s._allowances[sender][_msgSender()];
-
         if (currentAllowance < amount) {
             string memory err = string(abi.encodePacked("ERC20_TRANSER_EXCEEDS_ALLOWANCE:", _toString(_msgSender())));
             revert(err);
         }
-
         unchecked {
             _approve(sender, _msgSender(), currentAllowance - amount);
         }
+        return true;
+    }
 
+    function signedTransferFrom(address sender, address recipient, uint256 amount, SignedId calldata sid) public virtual nonReentrantZone2 returns (bool) {
+        notBanned();
+        address signer = _validSigner(sid);
+        _transfer(sender, recipient, amount);
+        emit Revenue(sid.id, recipient, signer, amount);
+        DataERC20 storage s = DataERC20Storage.diamondStorage();
+        uint256 currentAllowance = s._allowances[sender][_msgSender()];
+        if (currentAllowance < amount) {
+            string memory err = string(abi.encodePacked("ERC20_TRANSER_EXCEEDS_ALLOWANCE:", _toString(_msgSender())));
+            revert(err);
+        }
+        unchecked {
+            _approve(sender, _msgSender(), currentAllowance - amount);
+        }
         return true;
     }
 
@@ -571,6 +614,26 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
         return true;
     }
 
+    function _validSigner(SignedId memory sid) internal virtual returns (address) {
+        DataERC20 storage s = DataERC20Storage.diamondStorage();
+        require(!s._signature[sid.id], "DUPLICATE_SIGNATURE");
+        require(sid.exp == 0 || uint64(block.timestamp) <= sid.exp, "EXPIRED_SIGNATURE");
+        s._signature[sid.id] = true; // Signature IDs only valid once
+        bytes32 digest = keccak256(abi.encodePacked(
+            "\x19\x01",
+            s._domainSeparator,
+            keccak256(abi.encode(
+                SIGNED_TRANSFER_TYPEHASH,
+                sid.exp,
+                _msgSender(),
+                sid.id
+            ))
+        ));
+        address signer = ECDSA.recover(digest, sid.sig);
+        require(hasRole(REVENUE_ADMIN_ROLE, signer), "ACCESS_DENIED");
+        return(signer);
+    }
+
     /**
      * @dev Moves tokens `amount` from `sender` to `recipient`.
      *
@@ -588,13 +651,10 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
     function _transfer(address sender, address recipient, uint256 amount) internal virtual {
         require(sender != address(0), "ERC20_TRANSFER_FROM_ZERO_ADDRESS");
         require(recipient != address(0), "ERC20_TRANSFER_TO_ZERO_ADDRESS");
-        //require(recipient != sender, "ERC20: transfer to same address as sender");
-
         if (recipient == sender) {
             string memory err = string(abi.encodePacked("ERC20_TRANSER_SAME_ADDRESS:", _toString(_msgSender())));
             revert(err);
         }
-
         DataERC20 storage s = DataERC20Storage.diamondStorage();
         uint256 senderBalance = s._balances[sender];
         uint256 recipBalance = s._balances[recipient];
