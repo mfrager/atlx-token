@@ -499,7 +499,10 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
         notBanned();
         address signer = _validSigner(sid);
         _transfer(_msgSender(), recipient, amount);
-        emit Revenue(sid.id, recipient, signer, amount);
+        DataERC20 storage s = DataERC20Storage.diamondStorage();
+        if (s._validRevenue[recipient]) {
+            emit Revenue(sid.id, recipient, signer, amount);
+        }
         return true;
     }
 
@@ -556,8 +559,10 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
         notBanned();
         address signer = _validSigner(sid);
         _transfer(sender, recipient, amount);
-        emit Revenue(sid.id, recipient, signer, amount);
         DataERC20 storage s = DataERC20Storage.diamondStorage();
+        if (s._validRevenue[recipient]) {
+            emit Revenue(sid.id, recipient, signer, amount);
+        }
         uint256 currentAllowance = s._allowances[sender][_msgSender()];
         if (currentAllowance < amount) {
             string memory err = string(abi.encodePacked("ERC20_TRANSER_EXCEEDS_ALLOWANCE:", _toString(_msgSender())));
@@ -619,13 +624,14 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
         require(!s._signature[sid.id], "DUPLICATE_SIGNATURE");
         require(sid.exp == 0 || uint64(block.timestamp) <= sid.exp, "EXPIRED_SIGNATURE");
         s._signature[sid.id] = true; // Signature IDs only valid once
+        address sender = _msgSender();
         bytes32 digest = keccak256(abi.encodePacked(
             "\x19\x01",
             s._domainSeparator,
             keccak256(abi.encode(
                 SIGNED_TRANSFER_TYPEHASH,
                 sid.exp,
-                _msgSender(),
+                sender,
                 sid.id
             ))
         ));
