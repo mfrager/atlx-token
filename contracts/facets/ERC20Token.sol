@@ -55,7 +55,7 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
     event DisableMerchantAccount(address indexed merchant);
     event EnableRevenueAccount(address indexed account);
     event DisableRevenueAccount(address indexed account);
-    event Revenue(uint128 indexed eventId, address indexed account, address signer, uint256 indexed amount);
+    event Revenue(uint128 indexed eventId, address indexed source, address indexed account, address signer, uint256 amount);
     event Subscription(uint128 indexed subscrId, address indexed from, address indexed to);
     event SubscriptionUpdate(uint128 indexed subscrId, bool pausable, uint8 eventType, uint256 maxBudget, uint32 timeout, uint8 period);
     event SubscriptionBill(uint128 indexed subscrId, uint128 indexed eventId, uint8 eventType, uint256 amount, uint64 timestamp, uint8 errorCode);
@@ -77,7 +77,7 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
         s._swapper = swapper;
         s._domainSeparator = keccak256(abi.encode(
             keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
-            keccak256(bytes(tokenName)),
+            keccak256(bytes(tokenSymbol)),
             keccak256(bytes("1")),
             uint256(0),
             address(this)
@@ -299,7 +299,7 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
         }
         if (subscrData.eventType == uint8(EventType.FUND)) {
             _transfer(sd.from, sd.to, subscrData.amount);
-            emit Revenue(subscrData.eventId, sd.to, signer, subscrData.amount);
+            emit Revenue(subscrData.eventId, sd.from, sd.to, signer, subscrData.amount);
             emit SubscriptionBill(subscrId, subscrData.eventId, subscrData.eventType, subscrData.amount, subscrData.thisBill.timestamp, uint8(EventResult.SUCCESS));
             return(true);
         }
@@ -345,7 +345,7 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
         }
         // Ready to transfer
         _transfer(sd.from, sd.to, subscrData.amount);
-        emit Revenue(subscrData.eventId, sd.to, signer, subscrData.amount);
+        emit Revenue(subscrData.eventId, sd.from, sd.to, signer, subscrData.amount);
         emit SubscriptionBill(subscrId, subscrData.eventId, subscrData.eventType, subscrData.amount, subscrData.thisBill.timestamp, res);
         return(true);
     }
@@ -497,11 +497,12 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
 
     function signedTransfer(address recipient, uint256 amount, SignedId calldata sid) public virtual nonReentrantZone2 returns (bool) {
         notBanned();
+        address sender = _msgSender();
         address signer = _validSigner(sid);
-        _transfer(_msgSender(), recipient, amount);
+        _transfer(sender, recipient, amount);
         DataERC20 storage s = DataERC20Storage.diamondStorage();
         if (s._validRevenue[recipient]) {
-            emit Revenue(sid.id, recipient, signer, amount);
+            emit Revenue(sid.id, sender, recipient, signer, amount);
         }
         return true;
     }
@@ -561,7 +562,7 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
         _transfer(sender, recipient, amount);
         DataERC20 storage s = DataERC20Storage.diamondStorage();
         if (s._validRevenue[recipient]) {
-            emit Revenue(sid.id, recipient, signer, amount);
+            emit Revenue(sid.id, sender, recipient, signer, amount);
         }
         uint256 currentAllowance = s._allowances[sender][_msgSender()];
         if (currentAllowance < amount) {

@@ -254,7 +254,7 @@ def main():
         #fid_hash = sha3.keccak_256(fid).digest()
 
         class SignedTransfer(EIP712Message):
-            _name_: 'string' = 'Virtual USD'
+            _name_: 'string' = 'vtUSD'
             _version_: 'string' = '1'
             _chainId_: 'uint256' = 0
             _verifyingContract_: 'address' = str(dm2)

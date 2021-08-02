@@ -53,7 +53,7 @@ interface IERC20Full {
     event DisableMerchantAccount(address indexed merchant);
     event EnableRevenueAccount(address indexed account);
     event DisableRevenueAccount(address indexed account);
-    event Revenue(uint128 indexed eventId, address indexed account, address signer, uint256 indexed amount);
+    event Revenue(uint128 indexed eventId, address indexed source, address indexed account, address signer, uint256 amount);
     event Subscription(uint128 indexed subscrId, address indexed from, address indexed to);
     event SubscriptionUpdate(uint128 indexed subscrId, bool pausable, uint8 eventType, uint256 maxBudget, uint32 timeout, uint8 period);
     event SubscriptionBill(uint128 indexed subscrId, uint128 indexed eventId, uint8 eventType, uint256 amount, uint64 timestamp, uint8 errorCode);
