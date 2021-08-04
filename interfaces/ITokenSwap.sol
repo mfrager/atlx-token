@@ -12,7 +12,7 @@ struct SwapPair {
     address oracleToken;
     uint8 oracleDecimals;
     bool oracleInverse; // Inverse the oracle price
-    bool merchant; // Merchant-only swap
+    bool restricted; // Merchant-only swap
     bool mint; // Mint on swap
     bool burn; // Burn on swap
 }
@@ -20,7 +20,7 @@ struct SwapPair {
 interface ITokenSwap {
     event RegisterToken(address indexed token, string label);
     event RegisterSwapPair(uint32 indexed pair, address indexed fromToken, address indexed toToken, uint256 swapRate, uint256 baseRate, uint256 minimumIn, uint256 feeRate, address oracle, bool merchant);
-    event SwapTokens(address indexed fromAccount, address indexed toAccount, uint32 pair, uint256 tokensIn, uint256 tokensOut, uint256 feeOut);
+    event SwapTokens(address indexed fromAccount, address indexed toAccount, uint32 pair, uint256 tokensIn, uint256 tokensOut, uint256 fromBalance,uint256 toBalance, uint256 feeOut);
 
     function setupSwap(address admin, address fees) external returns (bool);
     function registerToken(address tokenContract, string memory label) external returns (bool);

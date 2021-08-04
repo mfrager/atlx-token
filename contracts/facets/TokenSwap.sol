@@ -7,6 +7,7 @@ import "../../libraries/AccessControlEnumerable.sol";
 import "../../interfaces/IERC20Full.sol";
 import "../../interfaces/IAggregatorInterface.sol";
 import "../../utils/Context.sol";
+import "../../utils/Strings.sol";
 
 contract TokenSwap is Context, ReentrancyGuard, AccessControlEnumerable {
 
@@ -16,7 +17,7 @@ contract TokenSwap is Context, ReentrancyGuard, AccessControlEnumerable {
 
     event RegisterToken(address indexed token, string label);
     event RegisterSwapPair(uint32 indexed pair, address indexed fromToken, address indexed toToken, uint256 swapRate, uint256 baseRate, uint256 minimumIn, uint256 feeRate, address oracle, bool restricted);
-    event SwapTokens(address indexed fromAccount, address indexed toAccount, uint32 pair, uint256 tokensIn, uint256 tokensOut, uint256 feeOut);
+    event SwapTokens(address indexed fromAccount, address indexed toAccount, uint32 pair, uint256 tokensIn, uint256 tokensOut, uint256 fromBalance,uint256 toBalance, uint256 feeOut);
 
     function setupSwap(address admin, address fees) external nonReentrant returns (bool) {
         DataTokenSwap storage s = DataTokenSwapStorage.diamondStorage();
@@ -61,6 +62,7 @@ contract TokenSwap is Context, ReentrancyGuard, AccessControlEnumerable {
             sp.feeRate = inp.feeRate;
             sp.oracleToken = inp.oracleToken;
             sp.oracleDecimals = inp.oracleDecimals;
+            sp.oracleInverse = inp.oracleInverse;
             sp.restricted = inp.restricted;
             sp.mint = inp.mint;
             sp.burn = inp.burn;
@@ -116,8 +118,8 @@ contract TokenSwap is Context, ReentrancyGuard, AccessControlEnumerable {
         }
         require(tokensIn >= sp.minimumIn, "BELOW_MINIMUM");
         // Calculate swap rate
-        uint256 tokensOut;
-        uint256 tokensFee;
+        uint256 tokensOut = 0;
+        uint256 tokensFee = 0;
         if (sp.oracleToken != address(0)) {
             int256 oracleInput = IAggregatorInterface(sp.oracleToken).latestAnswer();
             require(oracleInput > 0, "INVALID_QUOTE");
@@ -138,14 +140,17 @@ contract TokenSwap is Context, ReentrancyGuard, AccessControlEnumerable {
         }
         uint256 feeOut = 0;
         uint256 totalOut = tokensOut;
+
         if (sp.feeRate > 0) {
             feeOut = totalOut * sp.feeRate;
             feeOut = feeOut / (10**18);
             tokensOut = tokensOut - feeOut;
         }
-        // TODO: lockbox adjustment
         if (!sp.mint) {
-            require(s.tokenBalances[sp.toToken] >= totalOut, "NOT_ENOUGH_TOKENS_TO_SWAP");
+            if (s.tokenBalances[sp.toToken] <= totalOut) {
+                string memory err = string(abi.encodePacked("INSUFFICIENT_TOKENS:BALANCE(", Strings.toString(s.tokenBalances[sp.toToken]), "):OUT(", Strings.toString(totalOut), ")"));
+                revert(err);
+            }
         }
         if (sp.restricted) {
             bool isRevenue = IERC20Full(sp.fromToken).isRevenueAccount(fromAccount);
@@ -188,7 +193,7 @@ contract TokenSwap is Context, ReentrancyGuard, AccessControlEnumerable {
                 }
             }
         }
-        emit SwapTokens(fromAccount, toAccount, pairId, tokensIn, tokensOut, feeOut);
+        emit SwapTokens(fromAccount, toAccount, pairId, tokensIn, tokensOut, s.tokenBalances[sp.fromToken], s.tokenBalances[sp.toToken], feeOut);
         return (true);
     }
 }
