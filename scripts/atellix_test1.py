@@ -2,6 +2,7 @@ import sys
 import time
 import uuid
 import sha3
+import json
 import pprint
 from datetime import datetime, timezone
 from dateutil.relativedelta import relativedelta
@@ -11,6 +12,8 @@ from eip712.messages import EIP712Message
 
 ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 ONE_ADDRESS = '0x0000000000000000000000000000000000000001'
+
+contracts = {}
 
 def ts_data(interval=None):
     ts = time.time()
@@ -60,6 +63,7 @@ def main():
     print('Diamond 1 Owner: {}'.format(down1.owner({'from': accounts[0]})))
     dadm1 = interface.IDiamondAdmin(dm1)
     print('Diamond 1 Admin: {}'.format(dadm1.admin({'from': accounts[0]})))
+    contracts['DAI'] = str(dm1)
 
     dcf2 = DiamondCut.deploy({'from': accounts[1]})
     dm2 = Diamond.deploy(dcf2, [accounts[1], accounts[5]], {'from': accounts[1]})
@@ -114,6 +118,7 @@ def main():
     print('Diamond 2 Owner: {}'.format(down2.owner({'from': accounts[1]})))
     dadm2 = interface.IDiamondAdmin(dm2)
     print('Diamond 2 Admin: {}'.format(dadm2.admin({'from': accounts[1]})))
+    contracts['vtUSD'] = str(dm2)
 
     dcf3 = DiamondCut.deploy({'from': accounts[1]})
     dm3 = Diamond.deploy(dcf3, [accounts[1], accounts[5]], {'from': accounts[1]})
@@ -164,6 +169,7 @@ def main():
     print('Diamond 3 Owner: {}'.format(down3.owner({'from': accounts[1]})))
     dadm3 = interface.IDiamondAdmin(dm3)
     print('Diamond 3 Admin: {}'.format(dadm3.admin({'from': accounts[1]})))
+    contracts['ATLX'] = str(dm3)
 
     dcf4 = DiamondCut.deploy({'from': accounts[0]})
     dm4 = Diamond.deploy(dcf4, [accounts[1], accounts[5]], {'from': accounts[1]})
@@ -174,6 +180,7 @@ def main():
             token4.setupSwap.signature,
             token4.registerToken.signature,
             token4.registerSwapPairs.signature,
+            token4.getBalance.signature,
             token4.depositTokens.signature,
             token4.withdrawTokens.signature,
             token4.swapTokens.signature,
@@ -185,6 +192,7 @@ def main():
     print('Diamond 4 Owner: {}'.format(down4.owner({'from': accounts[1]})))
     dadm4 = interface.IDiamondAdmin(dm4)
     print('Diamond 4 Admin: {}'.format(dadm4.admin({'from': accounts[1]})))
+    contracts['atellix:swap'] = str(dm4)
 
     dcf5 = DiamondCut.deploy({'from': accounts[1]})
     dm5 = Diamond.deploy(dcf5, [accounts[1], accounts[5]], {'from': accounts[1]})
@@ -202,6 +210,7 @@ def main():
     print('Diamond 5 Owner: {}'.format(down5.owner({'from': accounts[1]})))
     dadm5 = interface.IDiamondAdmin(dm5)
     print('Diamond 5 Admin: {}'.format(dadm5.admin({'from': accounts[1]})))
+    contracts['atellix:oracle:eth:usd'] = str(dm5)
 
     erc1 = interface.IERC20Full(dm1)
     erc2 = interface.IERC20Full(dm2)
@@ -240,19 +249,28 @@ def main():
             [2, dm2, dm1, 0.9 * (10**18), (10**18), 25 * (10**18), 0.025 * (10**18), ZERO_ADDRESS, 0, False, False, False, True],
             [3, dm2, dm1, (10**18), (10**18), 0.01 * (10**18), 0, ZERO_ADDRESS, 0, False, True, False, True], # Merchant-only swap
             # ATLX <-> whoDAI
-            [4, dm1, dm3, (10**18), 100 * (10**18), 2 * (10**18), 0, ZERO_ADDRESS, 0, False, False, False, False],
-            [5, dm3, dm1, 0.99 * 100 * (10**18), (10**18), 0.5 * (10**18), 0, ZERO_ADDRESS, 0, False, False, False, False],
+            [4, dm1, dm3, (10**18), 10 * (10**18), 2 * (10**18), 0, ZERO_ADDRESS, 0, False, False, False, False],
+            [5, dm3, dm1, 0.9 * 10 * (10**18), (10**18), 0.5 * (10**18), 0, ZERO_ADDRESS, 0, False, False, False, False],
             # vtUSD <-> ETH
             [6, ONE_ADDRESS, dm2, (10**18), (10**18), 0.0025 * (10**18), 0, dm5, 8, False, False, True, False],
-            [7, dm2, ONE_ADDRESS, (10**18), (10**18), 50 * (10**18), 0, dm5, 8, True, False, False, True],
+            [7, dm2, ONE_ADDRESS, 0.9 * (10**18), (10**18), 50 * (10**18), 0, dm5, 8, True, False, False, True],
         ], {'from': accounts[1]}).events)
 
-    if True:
+    if False:
         # vtUSD <-> ETH
         print('From ETH')
         print(tswp.swapTokens(6, accounts[3], accounts[3], 0, {'from': accounts[3], 'value': 1000000000000000000}).events) # 1 ETH
         print('To ETH')
         print(tswp.swapTokens(7, accounts[3], accounts[3], 1146503006350000000000, {'from': accounts[3]}).events)
+
+        print('Swap ETH Balance')
+        print(tswp.getBalance(ONE_ADDRESS))
+        print('Swap whoDAI Balance')
+        print(tswp.getBalance(dm1))
+        print('Swap vtUSD Balance')
+        print(tswp.getBalance(dm2))
+        print('Swap ATLX Balance')
+        print(tswp.getBalance(dm3))
 
         #print('Approve')
         #print(erc3.approve(tswp, 1000000 * (10**18), {'from': accounts[1]})) # Approve 
@@ -400,5 +418,12 @@ def main():
     #print('Run Forever')
     #while True:
     #    pass
+    pprint.pprint(contracts)
+    with open('/Users/mfrager/Build/atellix/vue_app/src/config/contracts.json', 'w') as ctjson:
+        ctjson.write(json.dumps(contracts))
+
     print('Done')
+    print()
+    print()
+    print()
 

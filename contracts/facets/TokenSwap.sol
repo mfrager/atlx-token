@@ -101,6 +101,11 @@ contract TokenSwap is Context, ReentrancyGuard, AccessControlEnumerable {
         return (true);
     }
 
+    function getBalance(address token) external view returns (uint256) {
+        DataTokenSwap storage s = DataTokenSwapStorage.diamondStorage();
+        return(s.tokenBalances[token]);
+    }
+
     function swapTokens(uint32 pairId, address fromAccount, address payable toAccount, uint256 tokensIn) external payable nonReentrant returns (bool) {
         notBanned();
         return _swap(pairId, fromAccount, toAccount, tokensIn);
