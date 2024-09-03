@@ -42,12 +42,14 @@ struct SubscriptionSpec {
 struct ActionSwap {
     address swapToken;
     address fromAccount;
+    address toAccount;
     uint32 swapPairId;
     uint256 swapAmount;
 }
 
 struct ActionSubscribe {
     uint128 subscrId;
+    address subscrFrom;
     address subscrTo;
     bool pausable;
     bool fund;

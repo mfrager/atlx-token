@@ -168,38 +168,56 @@ contract ERC20Token is Context, ReentrancyGuard, AccessControlEnumerable, IERC20
         return(true);
     }
 
-    function actionBatch(address account, uint8[] calldata actionList, ActionSwap[] calldata swapList, ActionSubscribe[] calldata subscribeList, SignedId calldata sid) external nonReentrant returns (bool) {
+    function actionBatch(uint8[] calldata actionList, ActionSwap[] calldata swapList, ActionSubscribe[] calldata subscribeList, SignedId calldata sid) external nonReentrant returns (bool) {
         notBanned();
-        address sender = _msgSender();
-        DataERC20 storage s = DataERC20Storage.diamondStorage();
-        if (s._subscriptionAdmin[sender]) {
-            require(hasRole(SUBSCRIPTION_ADMIN_ROLE, sender), "ROLE_ACCESS_DENIED");
-        } else {
-            require(sender == account, "ACCOUNT_ACCESS_DENIED");
-        }
         uint8 swapIdx;
         uint8 subscribeIdx;
         uint8 action;
         for (uint8 actionIdx; actionIdx < actionList.length; actionIdx++) {
             action = actionList[actionIdx];
             if (action == uint8(ActionType.SWAP)) {
-                _action_swap(swapList[swapIdx]);
+                _action_swap(swapList[swapIdx], sid);
                 swapIdx++;
             } else if (action == uint8(ActionType.SUBSCRIBE)) {
-                _action_subscribe(account, subscribeList[subscribeIdx], sid);
+                _action_subscribe(subscribeList[subscribeIdx], sid);
                 subscribeIdx++;
             }
         }
         return(true);
     }
 
-    function _action_swap(ActionSwap calldata act) internal {
-        bool ok = ITokenSwap(act.swapToken).swapTokens(act.swapPairId, act.fromAccount, payable(act.fromAccount), act.swapAmount);
+    function _action_swap(ActionSwap calldata act, SignedId calldata sid) internal {
+        DataERC20 storage s = DataERC20Storage.diamondStorage();
+        address signer = address(0);
+        if (s._validRevenue[act.toAccount]) {
+            address sender = _msgSender();
+            if (s._subscriptionAdmin[sender]) {
+                require(hasRole(SUBSCRIPTION_ADMIN_ROLE, sender), "ROLE_ACCESS_DENIED");
+                bool isAllowed = false;
+                if (s._subscriptionDelegate[sender][address(1)]) {
+                    isAllowed = true;
+                } else if (s._subscriptionDelegate[sender][act.toAccount]) {
+                    isAllowed = true;
+                }
+                require(isAllowed, "ADMIN_ACCESS_DENIED");
+            } else {
+                require(act.fromAccount == sender, "ACCESS_DENIED");
+            }
+            signer = _validSigner(sid);
+            address outputToken = ITokenSwap(act.swapToken).getPairOutput(act.swapPairId);
+            require(outputToken == address(this), "INVALID_SWAP_DESTINATION");
+        }
+        bool ok;
+        uint256 tokensOut;
+        (ok, tokensOut) = ITokenSwap(act.swapToken).swapTokens(act.swapPairId, act.fromAccount, payable(act.toAccount), act.swapAmount);
         require(ok == true, "SWAP_FAILED");
+        if (signer != address(0)) {
+            emit Revenue(sid.id, act.fromAccount, act.toAccount, signer, tokensOut);
+        }
     }
 
-    function _action_subscribe(address subscriber, ActionSubscribe calldata act, SignedId calldata sid) internal {
-        _beginSubscription(act.subscrId, subscriber, act.subscrTo, act.pausable, act.subscrSpec);
+    function _action_subscribe(ActionSubscribe calldata act, SignedId calldata sid) internal {
+        _beginSubscription(act.subscrId, act.subscrFrom, act.subscrTo, act.pausable, act.subscrSpec);
         if (act.fund) {
             SubscriptionEvent memory fund;
             fund.subscrId = act.subscrId;

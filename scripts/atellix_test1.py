@@ -228,6 +228,12 @@ def main():
         print('Transfer')
         print(erc1.transfer(accounts[3], 1000 * (10**18), {'from': accounts[0]})) # User gets whoDAI from exchange
 
+        print('Enable Merchant 1')
+        print(erc2.enableMerchant(accounts[2], {'from': accounts[1]}).events)
+
+        print('Authorize Admin 1')
+        print(erc2.grantRole(sha3.keccak_256(b'REVENUE_ADMIN_ROLE').digest(), '0xd4039eB67CBB36429Ad9DD30187B94f6A5122215', {'from': accounts[1]}).events)
+
         print('Balance')
         print('User whoDAI: {}'.format(erc1.balanceOf(accounts[3], {'from': accounts[3]}) / (10**18)))
         print('User ATLX: {}'.format(erc2.balanceOf(accounts[3], {'from': accounts[3]}) / (10**18)))
@@ -287,9 +293,6 @@ def main():
         print(erc1.approve(tswp, 500 * (10**18), {'from': accounts[3]}))
         #print(tswp.swapTokens(4, accounts[3], accounts[3], 100 * (10**18), {'from': accounts[3]}))
 
-        print('Enable Merchant 1')
-        print(erc2.enableMerchant(accounts[2], {'from': accounts[1]}).events)
-
         print('Authorize Admin 1')
         print(erc2.grantRole(sha3.keccak_256(b'REVENUE_ADMIN_ROLE').digest(), '0xd4039eB67CBB36429Ad9DD30187B94f6A5122215', {'from': accounts[1]}).events)
 
@@ -313,6 +316,7 @@ def main():
         sm = local.sign_message(sid)
         #print(sm.messageHash.hex())
         
+        # FIX
         print(erc2.actionBatch(accounts[3], [0, 1], [
             [tswp, accounts[3], 1, 100 * (10**18)], # Swap
         ], [

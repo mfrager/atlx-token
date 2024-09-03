@@ -106,12 +106,15 @@ contract TokenSwap is Context, ReentrancyGuard, AccessControlEnumerable {
         return(s.tokenBalances[token]);
     }
 
-    function swapTokens(uint32 pairId, address fromAccount, address payable toAccount, uint256 tokensIn) external payable nonReentrant returns (bool) {
-        notBanned();
-        return _swap(pairId, fromAccount, toAccount, tokensIn);
+    function getPairOutput(uint32 pairId) external view returns (address) {
+        DataTokenSwap storage s = DataTokenSwapStorage.diamondStorage();
+        SwapPair storage sp = s.swapPairs[pairId];
+        require(sp.fromToken != address(0), "INVALID_SWAP_PAIR");
+        return(sp.toToken);
     }
 
-    function _swap(uint32 pairId, address fromAccount, address payable toAccount, uint256 tokensIn) internal returns (bool) {
+    function swapTokens(uint32 pairId, address fromAccount, address payable toAccount, uint256 tokensIn) external payable nonReentrant returns (bool, uint256) {
+        notBanned();
         DataTokenSwap storage s = DataTokenSwapStorage.diamondStorage();
         SwapPair storage sp = s.swapPairs[pairId];
         require(sp.fromToken != address(0), "INVALID_SWAP_PAIR");
@@ -199,6 +202,6 @@ contract TokenSwap is Context, ReentrancyGuard, AccessControlEnumerable {
             }
         }
         emit SwapTokens(fromAccount, toAccount, pairId, tokensIn, tokensOut, s.tokenBalances[sp.fromToken], s.tokenBalances[sp.toToken], feeOut);
-        return (true);
+        return (true, tokensOut);
     }
 }

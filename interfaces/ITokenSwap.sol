@@ -26,7 +26,8 @@ interface ITokenSwap {
     function registerToken(address tokenContract, string memory label) external returns (bool);
     function registerSwapPairs(SwapPair[] calldata pairs) external returns (bool);
     function getBalance(address token) external view returns (uint256);
+    function getPairOutput(uint32 pairId) external view returns (address);
     function depositTokens(address fromToken, address fromAccount, uint256 fromAmount) external returns (bool);
     function withdrawTokens(address forToken, address toAccount, uint256 withdrawAmount) external returns (bool);
-    function swapTokens(uint32 pairId, address fromAccount, address payable toAccount, uint256 tokensIn) external returns (bool);
+    function swapTokens(uint32 pairId, address fromAccount, address payable toAccount, uint256 tokensIn) external returns (bool, uint256);
 }
